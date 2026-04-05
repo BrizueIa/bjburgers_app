@@ -90,18 +90,48 @@ class DashboardScreen extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
             children: [
               Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(28),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(28),
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF8F2E15), Color(0xFFD57C2F)],
+                    colors: [
+                      Color(0xFF120D08),
+                      Color(0xFF2D1306),
+                      Color(0xFFF28C00),
+                    ],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
+                  boxShadow: const [
+                    BoxShadow(
+                      color: Color(0x33120000),
+                      blurRadius: 24,
+                      offset: Offset(0, 16),
+                    ),
+                  ],
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 8,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.12),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: const Text(
+                        'B&J BURGERS · OPERACION',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
                     Text(
                       'Operacion del dia',
                       style: Theme.of(
@@ -231,14 +261,25 @@ class _MetricCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(22),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Icon(icon, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(height: 12),
-            Text(title),
+            Container(
+              width: 46,
+              height: 46,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(16),
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFFFC14D), Color(0xFFF28C00)],
+                ),
+              ),
+              alignment: Alignment.center,
+              child: Icon(icon, color: const Color(0xFF1A1208)),
+            ),
+            const SizedBox(height: 14),
+            Text(title, style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
             Text(value, style: Theme.of(context).textTheme.headlineSmall),
           ],
@@ -258,7 +299,7 @@ class _SummaryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -266,10 +307,16 @@ class _SummaryCard extends StatelessWidget {
             const SizedBox(height: 16),
             ...rows.map(
               (row) => Padding(
-                padding: const EdgeInsets.only(bottom: 12),
+                padding: const EdgeInsets.only(bottom: 14),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [Text(row.label), Text(row.value)],
+                  children: [
+                    Expanded(child: Text(row.label)),
+                    Text(
+                      row.value,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                  ],
                 ),
               ),
             ),

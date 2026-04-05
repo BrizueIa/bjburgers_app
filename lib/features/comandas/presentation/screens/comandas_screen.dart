@@ -199,6 +199,62 @@ class _CommandComposer extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
       children: [
+        Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(28),
+            gradient: const LinearGradient(
+              colors: [Color(0xFF1A1208), Color(0xFF5A2208), Color(0xFFF28C00)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            boxShadow: const [
+              BoxShadow(
+                color: Color(0x331B0A00),
+                blurRadius: 24,
+                offset: Offset(0, 14),
+              ),
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: const Text(
+                  'ESTACION DE COMANDAS',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Toma pedidos rapido y deja visible cada preparacion.',
+                style: Theme.of(
+                  context,
+                ).textTheme.headlineSmall?.copyWith(color: Colors.white),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'La cola se mantiene abierta por defecto para ver ingredientes, cambios y estado sin clicks extra.',
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                  color: Colors.white.withValues(alpha: 0.9),
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 20),
         Text('Nueva comanda', style: Theme.of(context).textTheme.headlineSmall),
         const SizedBox(height: 16),
         productsAsync.when(
@@ -210,6 +266,7 @@ class _CommandComposer extends StatelessWidget {
                 SizedBox(
                   width: 200,
                   child: Card(
+                    clipBehavior: Clip.antiAlias,
                     child: InkWell(
                       borderRadius: BorderRadius.circular(24),
                       onTap: () => onAddProduct(product),
@@ -218,6 +275,27 @@ class _CommandComposer extends StatelessWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Container(
+                              width: 40,
+                              height: 40,
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(14),
+                                gradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFFFFC14D),
+                                    Color(0xFFF28C00),
+                                  ],
+                                ),
+                              ),
+                              alignment: Alignment.center,
+                              child: Icon(
+                                product.productType == 'simple'
+                                    ? Icons.local_drink_rounded
+                                    : Icons.lunch_dining_rounded,
+                                color: const Color(0xFF1A1208),
+                              ),
+                            ),
+                            const SizedBox(height: 12),
                             Text(
                               product.name,
                               style: Theme.of(context).textTheme.titleMedium,
@@ -229,7 +307,11 @@ class _CommandComposer extends StatelessWidget {
                                   : 'Con receta',
                             ),
                             const SizedBox(height: 8),
-                            Text(currency.format(product.salePrice)),
+                            Text(
+                              currency.format(product.salePrice),
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(color: const Color(0xFF7A2E12)),
+                            ),
                           ],
                         ),
                       ),
@@ -244,7 +326,7 @@ class _CommandComposer extends StatelessWidget {
         const SizedBox(height: 24),
         Card(
           child: Padding(
-            padding: const EdgeInsets.all(20),
+            padding: const EdgeInsets.all(24),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -261,6 +343,11 @@ class _CommandComposer extends StatelessWidget {
                         entry.value.removedIngredients.isEmpty
                             ? 'Sin cambios'
                             : 'Sin: ${entry.value.removedIngredients.join(', ')}',
+                      ),
+                      leading: CircleAvatar(
+                        backgroundColor: const Color(0xFFFFD27A),
+                        foregroundColor: const Color(0xFF1A1208),
+                        child: Text('${entry.value.quantity}'),
                       ),
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -332,79 +419,165 @@ class _OrdersQueue extends ConsumerWidget {
           separatorBuilder: (_, __) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final order = orders[index];
+            final accent = _statusAccent(order.status);
             return Card(
-              child: ExpansionTile(
-                title: Text(order.orderNumber),
-                subtitle: Text(
-                  '${order.itemCount} productos · ${currency.format(order.totalEstimated)}',
-                ),
-                trailing: Chip(label: Text(_statusLabel(order.status))),
-                childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-                children: [
-                  if (order.notes != null)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(order.notes!),
-                    ),
-                  const SizedBox(height: 12),
-                  Consumer(
-                    builder: (context, ref, child) {
-                      final itemsAsync = ref.watch(
-                        orderItemsProvider(order.id),
-                      );
-                      return itemsAsync.when(
-                        data: (items) => Column(
-                          children: items
-                              .map(
-                                (item) => ListTile(
-                                  contentPadding: EdgeInsets.zero,
-                                  title: Text(
-                                    '${item.quantity} x ${item.productName}',
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          width: 12,
+                          height: 72,
+                          decoration: BoxDecoration(
+                            color: accent,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                        ),
+                        const SizedBox(width: 14),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      order.orderNumber,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleLarge,
+                                    ),
                                   ),
-                                  subtitle: item.removedIngredients.isEmpty
-                                      ? null
-                                      : Text(
-                                          'Sin: ${item.removedIngredients.join(', ')}',
+                                  Chip(label: Text(_statusLabel(order.status))),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                '${order.itemCount} productos · ${currency.format(order.totalEstimated)}',
+                                style: Theme.of(context).textTheme.bodyLarge,
+                              ),
+                              if (order.notes != null) ...[
+                                const SizedBox(height: 10),
+                                Text(order.notes!),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 14),
+                    Consumer(
+                      builder: (context, ref, child) {
+                        final itemsAsync = ref.watch(
+                          orderItemsProvider(order.id),
+                        );
+                        return itemsAsync.when(
+                          data: (items) => Column(
+                            children: items
+                                .map(
+                                  (item) => Container(
+                                    margin: const EdgeInsets.only(bottom: 10),
+                                    padding: const EdgeInsets.all(14),
+                                    decoration: BoxDecoration(
+                                      color: const Color(0xFFFFF6EA),
+                                      borderRadius: BorderRadius.circular(20),
+                                      border: Border.all(
+                                        color: const Color(0xFFEACBA4),
+                                      ),
+                                    ),
+                                    child: Row(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        CircleAvatar(
+                                          radius: 18,
+                                          backgroundColor: const Color(
+                                            0xFFFFC14D,
+                                          ),
+                                          foregroundColor: const Color(
+                                            0xFF1A1208,
+                                          ),
+                                          child: Text('${item.quantity}'),
                                         ),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                        loading: () => const CircularProgressIndicator(),
-                        error: (error, stackTrace) => Text('$error'),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      if (order.status == 'pending')
-                        OutlinedButton(
-                          onPressed: () => ref
-                              .read(comandasRepositoryProvider)
-                              .updateOrderStatus(order.id, 'preparing'),
-                          child: const Text('Preparando'),
-                        ),
-                      if (order.status == 'preparing')
-                        FilledButton(
-                          onPressed: () => ref
-                              .read(comandasRepositoryProvider)
-                              .updateOrderStatus(order.id, 'ready'),
-                          child: const Text('Pasar a POS'),
-                        ),
-                      if (order.status != 'delivered' &&
-                          order.status != 'cancelled')
-                        TextButton(
-                          onPressed: () => ref
-                              .read(comandasRepositoryProvider)
-                              .cancelOrder(order.id),
-                          child: const Text('Cancelar'),
-                        ),
-                    ],
-                  ),
-                ],
+                                        const SizedBox(width: 12),
+                                        Expanded(
+                                          child: Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                item.productName,
+                                                style: const TextStyle(
+                                                  fontWeight: FontWeight.w800,
+                                                ),
+                                              ),
+                                              if (item
+                                                  .removedIngredients
+                                                  .isNotEmpty)
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        top: 4,
+                                                      ),
+                                                  child: Text(
+                                                    'Sin: ${item.removedIngredients.join(', ')}',
+                                                    style: const TextStyle(
+                                                      color: Color(0xFF7A2E12),
+                                                    ),
+                                                  ),
+                                                ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                          ),
+                          loading: () => const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: CircularProgressIndicator(),
+                          ),
+                          error: (error, stackTrace) => Text('$error'),
+                        );
+                      },
+                    ),
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        if (order.status == 'pending')
+                          OutlinedButton(
+                            onPressed: () => ref
+                                .read(comandasRepositoryProvider)
+                                .updateOrderStatus(order.id, 'preparing'),
+                            child: const Text('Preparando'),
+                          ),
+                        if (order.status == 'preparing')
+                          FilledButton(
+                            onPressed: () => ref
+                                .read(comandasRepositoryProvider)
+                                .updateOrderStatus(order.id, 'ready'),
+                            child: const Text('Pasar a POS'),
+                          ),
+                        if (order.status != 'delivered' &&
+                            order.status != 'cancelled')
+                          TextButton(
+                            onPressed: () => ref
+                                .read(comandasRepositoryProvider)
+                                .cancelOrder(order.id),
+                            child: const Text('Cancelar'),
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -413,6 +586,23 @@ class _OrdersQueue extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => Center(child: Text('$error')),
     );
+  }
+}
+
+Color _statusAccent(String status) {
+  switch (status) {
+    case 'pending':
+      return const Color(0xFFF28C00);
+    case 'preparing':
+      return const Color(0xFFCF5F0A);
+    case 'ready':
+      return const Color(0xFF3E9B47);
+    case 'delivered':
+      return const Color(0xFF455A64);
+    case 'cancelled':
+      return const Color(0xFFB3261E);
+    default:
+      return const Color(0xFF7A2E12);
   }
 }
 
