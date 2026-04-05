@@ -64,6 +64,7 @@ class _DesktopNavigation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
+      color: const Color(0xFF1A1208),
       width: 108,
       padding: const EdgeInsets.fromLTRB(12, 20, 12, 18),
       child: Column(
@@ -85,14 +86,13 @@ class _DesktopNavigation extends StatelessWidget {
                 ),
               ],
             ),
-            child: const Column(
+            child: Column(
               children: [
                 Icon(Icons.local_fire_department_rounded, color: Colors.white),
                 SizedBox(height: 6),
                 Text(
                   'B&J',
                   style: TextStyle(
-                    color: Colors.white,
                     fontWeight: FontWeight.w900,
                     letterSpacing: 1.2,
                   ),
@@ -100,6 +100,7 @@ class _DesktopNavigation extends StatelessWidget {
               ],
             ),
           ),
+
           const SizedBox(height: 18),
           for (final item in AppDestination.values)
             Padding(
@@ -112,9 +113,9 @@ class _DesktopNavigation extends StatelessWidget {
             child: Text(
               'BJ BURGERS',
               style: TextStyle(
-                color: Color(0x88FFF3E0),
                 fontWeight: FontWeight.w800,
                 letterSpacing: 2,
+                color: Color.fromARGB(255, 255, 255, 255),
               ),
             ),
           ),
