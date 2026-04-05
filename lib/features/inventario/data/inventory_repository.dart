@@ -26,10 +26,13 @@ class ProductSummary {
     required this.productType,
     required this.salePrice,
     required this.directCost,
+    required this.stockQuantity,
+    required this.trackStock,
     required this.isActive,
     required this.calculatedCost,
     required this.margin,
     required this.recipeLines,
+    required this.isInStock,
   });
 
   final String id;
@@ -38,10 +41,13 @@ class ProductSummary {
   final String productType;
   final double salePrice;
   final double directCost;
+  final double? stockQuantity;
+  final bool trackStock;
   final bool isActive;
   final double calculatedCost;
   final double margin;
   final int recipeLines;
+  final bool isInStock;
 }
 
 class RecipeLineSummary {
@@ -74,12 +80,25 @@ class InventoryRepository {
         p.product_type,
         p.sale_price,
         p.direct_cost,
+        p.stock_quantity,
+        p.track_stock,
         p.is_active,
         CASE
           WHEN p.product_type = 'simple' THEN p.direct_cost
           ELSE COALESCE(SUM(r.quantity_used * i.current_unit_cost), 0)
         END AS calculated_cost,
-        COUNT(r.id) AS recipe_lines
+        COUNT(r.id) AS recipe_lines,
+        CASE
+          WHEN p.product_type = 'simple' AND p.track_stock = 1 THEN COALESCE(p.stock_quantity, 0) > 0
+          WHEN p.product_type = 'simple' THEN 1
+          WHEN COUNT(r.id) = 0 THEN 1
+          WHEN MIN(CASE
+            WHEN i.stock_quantity IS NULL THEN 999999
+            WHEN r.quantity_used <= 0 THEN 999999
+            ELSE i.stock_quantity / r.quantity_used
+          END) >= 1 THEN 1
+          ELSE 0
+        END AS is_in_stock
       FROM products p
       LEFT JOIN product_recipe_items r ON r.product_id = p.id
       LEFT JOIN ingredients i ON i.id = r.ingredient_id
@@ -109,10 +128,13 @@ class InventoryRepository {
               productType: row.read<String>('product_type'),
               salePrice: salePrice,
               directCost: row.read<double>('direct_cost'),
+              stockQuantity: row.read<double?>('stock_quantity'),
+              trackStock: row.read<bool>('track_stock'),
               isActive: row.read<bool>('is_active'),
               calculatedCost: calculatedCost,
               margin: salePrice - calculatedCost,
               recipeLines: row.read<int>('recipe_lines'),
+              isInStock: row.read<int>('is_in_stock') == 1,
             );
           }).toList(),
         );
@@ -161,6 +183,7 @@ class InventoryRepository {
     required String name,
     required String unitName,
     required double currentUnitCost,
+    required double? stockQuantity,
     required bool isActive,
   }) async {
     final now = DateTime.now();
@@ -173,6 +196,7 @@ class InventoryRepository {
             name: Value(name),
             unitName: Value(unitName),
             currentUnitCost: Value(currentUnitCost),
+            stockQuantity: Value(stockQuantity),
             isActive: Value(isActive),
             createdAt: Value(now),
             updatedAt: Value(now),
@@ -188,9 +212,11 @@ class InventoryRepository {
         'name': name,
         'unit_name': unitName,
         'current_unit_cost': currentUnitCost,
+        'stock_quantity': stockQuantity,
         'is_active': isActive,
         'created_at': now.toUtc().toIso8601String(),
         'updated_at': now.toUtc().toIso8601String(),
+        'deleted_at': null,
       },
     );
   }
@@ -202,6 +228,8 @@ class InventoryRepository {
     required String productType,
     required double salePrice,
     required double directCost,
+    required double? stockQuantity,
+    required bool trackStock,
     required bool isActive,
     required List<RecipeDraftItem> recipeItems,
   }) async {
@@ -221,6 +249,8 @@ class InventoryRepository {
               productType: Value(productType),
               salePrice: Value(salePrice),
               directCost: Value(directCost),
+              stockQuantity: Value(trackStock ? stockQuantity : null),
+              trackStock: Value(trackStock),
               isActive: Value(isActive),
               createdAt: Value(now),
               updatedAt: Value(now),
@@ -260,10 +290,13 @@ class InventoryRepository {
         'product_type': productType,
         'sale_price': salePrice,
         'direct_cost': directCost,
+        'stock_quantity': trackStock ? stockQuantity : null,
+        'track_stock': trackStock,
         'display_order': 0,
         'is_active': isActive,
         'created_at': now.toUtc().toIso8601String(),
         'updated_at': now.toUtc().toIso8601String(),
+        'deleted_at': null,
       },
     );
   }
@@ -287,9 +320,11 @@ class InventoryRepository {
         'name': ingredient.name,
         'unit_name': ingredient.unitName,
         'current_unit_cost': ingredient.currentUnitCost,
+        'stock_quantity': ingredient.stockQuantity,
         'is_active': !ingredient.isActive,
         'created_at': ingredient.createdAt.toUtc().toIso8601String(),
         'updated_at': now.toUtc().toIso8601String(),
+        'deleted_at': null,
       },
     );
   }
@@ -315,9 +350,12 @@ class InventoryRepository {
         'product_type': product.productType,
         'sale_price': product.salePrice,
         'direct_cost': product.directCost,
+        'stock_quantity': product.stockQuantity,
+        'track_stock': product.trackStock,
         'display_order': 0,
         'is_active': !product.isActive,
         'updated_at': now.toUtc().toIso8601String(),
+        'deleted_at': null,
       },
     );
   }
@@ -372,6 +410,8 @@ class InventoryRepository {
         'product_type': product.productType,
         'sale_price': product.salePrice,
         'direct_cost': product.directCost,
+        'stock_quantity': product.stockQuantity,
+        'track_stock': product.trackStock,
         'display_order': 0,
         'is_active': false,
         'updated_at': now.toUtc().toIso8601String(),

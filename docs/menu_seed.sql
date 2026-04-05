@@ -1,14 +1,23 @@
 -- BJ Burguers menu seed
 -- Idempotent seed for ingredients, products, and recipes.
--- Safe to run multiple times if unique constraints exist on:
---   public.ingredients(name)
---   public.products(name)
--- and on:
---   public.product_recipe_items(product_id, ingredient_id)
+-- Note: stock is intentionally left as NULL so you can enable it later from the app.
 
--- Recommended unique constraints if not created yet:
--- ALTER TABLE public.ingredients ADD CONSTRAINT ingredients_name_key UNIQUE (name);
--- ALTER TABLE public.products ADD CONSTRAINT products_name_key UNIQUE (name);
+-- 0) REQUIRED UNIQUE INDEXES FOR IDEMPOTENT UPSERTS
+ALTER TABLE public.ingredients
+ADD COLUMN IF NOT EXISTS stock_quantity numeric(12, 3);
+
+ALTER TABLE public.products
+ADD COLUMN IF NOT EXISTS stock_quantity numeric(12, 3),
+ADD COLUMN IF NOT EXISTS track_stock boolean NOT NULL DEFAULT false;
+
+CREATE UNIQUE INDEX IF NOT EXISTS ingredients_name_uidx
+ON public.ingredients (name);
+
+CREATE UNIQUE INDEX IF NOT EXISTS products_name_uidx
+ON public.products (name);
+
+CREATE UNIQUE INDEX IF NOT EXISTS product_recipe_items_product_ingredient_uidx
+ON public.product_recipe_items (product_id, ingredient_id);
 
 -- 1) INGREDIENTS
 INSERT INTO public.ingredients (name, unit_name, current_unit_cost)
@@ -42,39 +51,41 @@ ON CONFLICT (name) DO UPDATE
 SET unit_name = EXCLUDED.unit_name;
 
 -- 2) PRODUCTS
-INSERT INTO public.products (name, category_name, product_type, sale_price, direct_cost, display_order)
+INSERT INTO public.products (name, category_name, product_type, sale_price, direct_cost, stock_quantity, track_stock, display_order)
 VALUES
-  ('Clasica', 'Hamburguesas', 'recipe', 69, 0, 1),
-  ('BBQ', 'Hamburguesas', 'recipe', 89, 0, 2),
-  ('Hawaiana', 'Hamburguesas', 'recipe', 79, 0, 3),
-  ('Salchiburger', 'Hamburguesas', 'recipe', 79, 0, 4),
-  ('Mounstrosa', 'Hamburguesas', 'recipe', 169, 0, 5),
+  ('Clasica', 'Hamburguesas', 'recipe', 69, 0, NULL, false, 1),
+  ('BBQ', 'Hamburguesas', 'recipe', 89, 0, NULL, false, 2),
+  ('Hawaiana', 'Hamburguesas', 'recipe', 79, 0, NULL, false, 3),
+  ('Salchiburger', 'Hamburguesas', 'recipe', 79, 0, NULL, false, 4),
+  ('Mounstrosa', 'Hamburguesas', 'recipe', 169, 0, NULL, false, 5),
 
-  ('Hot Dog Clasico', 'Hot Dogs', 'recipe', 49, 0, 10),
-  ('Salchi-Dog', 'Hot Dogs', 'recipe', 69, 0, 11),
-  ('Hot Dog Jack Daniels', 'Hot Dogs', 'recipe', 69, 0, 12),
+  ('Hot Dog Clasico', 'Hot Dogs', 'recipe', 49, 0, NULL, false, 10),
+  ('Salchi-Dog', 'Hot Dogs', 'recipe', 69, 0, NULL, false, 11),
+  ('Hot Dog Jack Daniels', 'Hot Dogs', 'recipe', 69, 0, NULL, false, 12),
 
-  ('Orden de Papas (350gr)', 'Complementos', 'simple', 45, 0, 20),
-  ('Orden de Aros de Cebolla (250gr)', 'Complementos', 'simple', 45, 0, 21),
+  ('Orden de Papas (350gr)', 'Complementos', 'recipe', 45, 0, NULL, false, 20),
+  ('Orden de Aros de Cebolla (250gr)', 'Complementos', 'recipe', 45, 0, NULL, false, 21),
 
-  ('Porcion de Papas (150gr)', 'Extras', 'simple', 15, 0, 30),
-  ('Tocino Extra', 'Extras', 'simple', 15, 0, 31),
-  ('Queso Asadero Extra', 'Extras', 'simple', 15, 0, 32),
-  ('Pina Asada Extra', 'Extras', 'simple', 15, 0, 33),
-  ('Salchichon Extra', 'Extras', 'simple', 20, 0, 34),
-  ('Carne Extra', 'Extras', 'simple', 25, 0, 35),
+  ('Porcion de Papas (150gr)', 'Extras', 'simple', 15, 0, NULL, true, 30),
+  ('Tocino Extra', 'Extras', 'simple', 15, 0, NULL, true, 31),
+  ('Queso Asadero Extra', 'Extras', 'simple', 15, 0, NULL, true, 32),
+  ('Pina Asada Extra', 'Extras', 'simple', 15, 0, NULL, true, 33),
+  ('Salchichon Extra', 'Extras', 'simple', 20, 0, NULL, true, 34),
+  ('Carne Extra', 'Extras', 'simple', 25, 0, NULL, true, 35),
 
-  ('Coca-Cola 600ml', 'Bebidas', 'simple', 35, 0, 40),
-  ('Coca-Cola Zero 600ml', 'Bebidas', 'simple', 30, 0, 41),
-  ('Delaware 600ml', 'Bebidas', 'simple', 30, 0, 42),
-  ('Manzanita 600ml', 'Bebidas', 'simple', 30, 0, 43),
-  ('Fanta 600ml', 'Bebidas', 'simple', 30, 0, 44)
+  ('Coca-Cola 600ml', 'Bebidas', 'simple', 35, 0, NULL, false, 40),
+  ('Coca-Cola Zero 600ml', 'Bebidas', 'simple', 30, 0, NULL, false, 41),
+  ('Delaware 600ml', 'Bebidas', 'simple', 30, 0, NULL, false, 42),
+  ('Manzanita 600ml', 'Bebidas', 'simple', 30, 0, NULL, false, 43),
+  ('Fanta 600ml', 'Bebidas', 'simple', 30, 0, NULL, false, 44)
 ON CONFLICT (name) DO UPDATE
 SET
   category_name = EXCLUDED.category_name,
   product_type = EXCLUDED.product_type,
   sale_price = EXCLUDED.sale_price,
   direct_cost = EXCLUDED.direct_cost,
+  stock_quantity = EXCLUDED.stock_quantity,
+  track_stock = EXCLUDED.track_stock,
   display_order = EXCLUDED.display_order;
 
 -- 3) RECIPES
@@ -146,7 +157,11 @@ WITH recipe_data(product_name, ingredient_name, quantity, is_optional) AS (
     ('Hot Dog Jack Daniels','Tocino',2,false),
     ('Hot Dog Jack Daniels','Queso asadero',30,false),
     ('Hot Dog Jack Daniels','Salsa BBQ',20,false),
-    ('Hot Dog Jack Daniels','Cebolla caramelizada Jack Daniels',30,false)
+    ('Hot Dog Jack Daniels','Cebolla caramelizada Jack Daniels',30,false),
+
+    -- COMPLEMENTOS COMO RECETA
+    ('Orden de Papas (350gr)','Papas',350,false),
+    ('Orden de Aros de Cebolla (250gr)','Aros de cebolla',250,false)
 )
 INSERT INTO public.product_recipe_items (product_id, ingredient_id, quantity_used, is_optional)
 SELECT

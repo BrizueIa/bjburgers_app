@@ -94,6 +94,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SizedBox(height: 16),
           _SectionCard(
+            title: 'Operacion e inventario',
+            subtitle:
+                'Activa el control de stock cuando ya tengas cantidades listas para operar con inventario.',
+            child: SwitchListTile.adaptive(
+              contentPadding: EdgeInsets.zero,
+              value: settings.stockTrackingEnabled,
+              title: const Text('Controlar stock de ingredientes'),
+              subtitle: const Text(
+                'Si esta apagado, la app oculta stock y no marca faltantes para uso rapido hoy.',
+              ),
+              onChanged: (value) async {
+                await ref
+                    .read(appSettingsProvider.notifier)
+                    .updateStockTrackingEnabled(value);
+              },
+            ),
+          ),
+          const SizedBox(height: 16),
+          _SectionCard(
             title: 'Modo admin',
             subtitle:
                 'Controla cambios de precios, caja y configuraciones sensibles.',

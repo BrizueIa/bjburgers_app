@@ -12,6 +12,7 @@ class Ingredients extends Table {
   TextColumn get name => text()();
   TextColumn get unitName => text().withDefault(const Constant('unidad'))();
   RealColumn get currentUnitCost => real().withDefault(const Constant(0))();
+  RealColumn get stockQuantity => real().nullable()();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   DateTimeColumn get createdAt => dateTime()();
   DateTimeColumn get updatedAt => dateTime()();
@@ -28,6 +29,8 @@ class Products extends Table {
   TextColumn get productType => text()();
   RealColumn get salePrice => real()();
   RealColumn get directCost => real().withDefault(const Constant(0))();
+  RealColumn get stockQuantity => real().nullable()();
+  BoolColumn get trackStock => boolean().withDefault(const Constant(false))();
   IntColumn get displayOrder => integer().withDefault(const Constant(0))();
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
   DateTimeColumn get createdAt => dateTime()();
@@ -198,7 +201,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.e) : super();
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -225,6 +228,22 @@ class AppDatabase extends _$AppDatabase {
         await migrator.addColumn(
           products,
           products.deletedAt as GeneratedColumn<Object>,
+        );
+      }
+      if (from < 6) {
+        await migrator.addColumn(
+          ingredients,
+          ingredients.stockQuantity as GeneratedColumn<Object>,
+        );
+      }
+      if (from < 7) {
+        await migrator.addColumn(
+          products,
+          products.stockQuantity as GeneratedColumn<Object>,
+        );
+        await migrator.addColumn(
+          products,
+          products.trackStock as GeneratedColumn<Object>,
         );
       }
     },

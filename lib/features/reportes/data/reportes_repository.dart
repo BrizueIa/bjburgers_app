@@ -114,9 +114,6 @@ class ReportesRepository {
   final AppDatabase _database;
 
   Future<ReportSnapshot> fetchReport(ReportDateRange range) async {
-    final startIso = range.start.toIso8601String();
-    final endIso = range.end.toIso8601String();
-
     final salesRow = await _database
         .customSelect(
           '''
@@ -129,7 +126,10 @@ class ReportesRepository {
       FROM sales
       WHERE sold_at >= ? AND sold_at <= ?
       ''',
-          variables: [Variable<String>(startIso), Variable<String>(endIso)],
+          variables: [
+            Variable<DateTime>(range.start),
+            Variable<DateTime>(range.end),
+          ],
           readsFrom: {_database.sales},
         )
         .getSingle();
@@ -141,7 +141,10 @@ class ReportesRepository {
       FROM orders
       WHERE created_at >= ? AND created_at <= ?
       ''',
-          variables: [Variable<String>(startIso), Variable<String>(endIso)],
+          variables: [
+            Variable<DateTime>(range.start),
+            Variable<DateTime>(range.end),
+          ],
           readsFrom: {_database.orders},
         )
         .getSingle();
@@ -153,7 +156,10 @@ class ReportesRepository {
       FROM ingredient_purchases
       WHERE purchased_at >= ? AND purchased_at <= ?
       ''',
-          variables: [Variable<String>(startIso), Variable<String>(endIso)],
+          variables: [
+            Variable<DateTime>(range.start),
+            Variable<DateTime>(range.end),
+          ],
           readsFrom: {_database.ingredientPurchases},
         )
         .getSingle();
@@ -173,7 +179,10 @@ class ReportesRepository {
       ORDER BY total_quantity DESC, total_sales DESC
       LIMIT 10
       ''',
-          variables: [Variable<String>(startIso), Variable<String>(endIso)],
+          variables: [
+            Variable<DateTime>(range.start),
+            Variable<DateTime>(range.end),
+          ],
           readsFrom: {_database.saleItems},
         )
         .get();
@@ -193,7 +202,10 @@ class ReportesRepository {
       WHERE opened_at >= ? AND opened_at <= ?
       ORDER BY opened_at DESC
       ''',
-          variables: [Variable<String>(startIso), Variable<String>(endIso)],
+          variables: [
+            Variable<DateTime>(range.start),
+            Variable<DateTime>(range.end),
+          ],
           readsFrom: {_database.cashSessions},
         )
         .get();

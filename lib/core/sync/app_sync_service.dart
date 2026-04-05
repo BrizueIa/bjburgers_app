@@ -1,4 +1,5 @@
 import 'package:drift/drift.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -49,6 +50,7 @@ class AppSyncService {
         message: 'Sincronizacion completada.',
       );
     } catch (error) {
+      debugPrint('Error durante sincronizacion: $error');
       return SyncSummary(
         success: false,
         message: 'Error de sincronizacion: $error',
@@ -68,11 +70,10 @@ class AppSyncService {
         .limit(1);
 
     if (remoteList.isEmpty) {
-      final inserted = await client
-          .from('settings')
-          .insert(_settingsPayload(local, local.remoteSettingsId))
-          .select()
-          .single();
+      final inserted = await _insertSettingsWithFallback(
+        client,
+        _settingsPayload(local, local.remoteSettingsId),
+      );
       await _localSettingsStore.setRemoteSettingsId(inserted['id'] as String);
       return;
     }
@@ -89,19 +90,64 @@ class AppSyncService {
         digitalMenuUrl: remote['digital_menu_image_url'] as String? ?? '',
         adminPin: remote['admin_pin'] as String? ?? '1234',
         adminModeEnabled: remote['admin_mode_enabled'] as bool? ?? false,
+        stockTrackingEnabled: _readRemoteStockTracking(remote),
         updatedAt: remoteUpdatedAt,
         remoteSettingsId: remote['id'] as String,
       );
       return;
     }
 
-    await client
-        .from('settings')
-        .upsert(
-          _settingsPayload(local, remote['id'] as String),
-          onConflict: 'id',
-        );
+    await _upsertSettingsWithFallback(
+      client,
+      _settingsPayload(local, remote['id'] as String),
+    );
     await _localSettingsStore.setRemoteSettingsId(remote['id'] as String);
+  }
+
+  bool _readRemoteStockTracking(Map<String, dynamic> remote) {
+    try {
+      return remote['stock_tracking_enabled'] as bool? ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<Map<String, dynamic>> _insertSettingsWithFallback(
+    SupabaseClient client,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      return await client.from('settings').insert(payload).select().single();
+    } on PostgrestException catch (error) {
+      if (_isMissingStockTrackingColumn(error)) {
+        final fallback = Map<String, dynamic>.from(payload)
+          ..remove('stock_tracking_enabled');
+        return await client.from('settings').insert(fallback).select().single();
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _upsertSettingsWithFallback(
+    SupabaseClient client,
+    Map<String, dynamic> payload,
+  ) async {
+    try {
+      await client.from('settings').upsert(payload, onConflict: 'id');
+    } on PostgrestException catch (error) {
+      if (_isMissingStockTrackingColumn(error)) {
+        final fallback = Map<String, dynamic>.from(payload)
+          ..remove('stock_tracking_enabled');
+        await client.from('settings').upsert(fallback, onConflict: 'id');
+        return;
+      }
+      rethrow;
+    }
+  }
+
+  bool _isMissingStockTrackingColumn(PostgrestException error) {
+    return error.code == 'PGRST204' &&
+        error.message.contains('stock_tracking_enabled');
   }
 
   Map<String, dynamic> _settingsPayload(
@@ -113,6 +159,7 @@ class AppSyncService {
       'business_name': local.businessName,
       'admin_pin': local.adminPin,
       'admin_mode_enabled': local.adminModeEnabled,
+      'stock_tracking_enabled': local.stockTrackingEnabled,
       'digital_menu_image_url': local.digitalMenuUrl.isEmpty
           ? null
           : local.digitalMenuUrl,
@@ -166,6 +213,9 @@ class AppSyncService {
                 currentUnitCost: Value(
                   (row['current_unit_cost'] as num?)?.toDouble() ?? 0,
                 ),
+                stockQuantity: Value(
+                  (row['stock_quantity'] as num?)?.toDouble(),
+                ),
                 isActive: Value(row['is_active'] as bool? ?? true),
                 createdAt: Value(
                   DateTime.parse(row['created_at'] as String).toLocal(),
@@ -203,6 +253,10 @@ class AppSyncService {
                 directCost: Value(
                   (row['direct_cost'] as num?)?.toDouble() ?? 0,
                 ),
+                stockQuantity: Value(
+                  (row['stock_quantity'] as num?)?.toDouble(),
+                ),
+                trackStock: Value(row['track_stock'] as bool? ?? false),
                 displayOrder: Value(row['display_order'] as int? ?? 0),
                 isActive: Value(row['is_active'] as bool? ?? true),
                 createdAt: Value(

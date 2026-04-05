@@ -1,9 +1,12 @@
+import 'dart:convert';
+
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/app_database_provider.dart';
+import '../../../core/storage/local_settings_store.dart';
 import '../../../core/sync/sync_queue_service.dart';
 import '../../caja/data/caja_repository.dart';
 import '../../comandas/data/comandas_repository.dart';
@@ -27,11 +30,17 @@ class SaleSummary {
 }
 
 class PosRepository {
-  PosRepository(this._database, this._cajaRepository, this._syncQueueService);
+  PosRepository(
+    this._database,
+    this._cajaRepository,
+    this._syncQueueService,
+    this._localSettingsStore,
+  );
 
   final AppDatabase _database;
   final CajaRepository _cajaRepository;
   final SyncQueueService _syncQueueService;
+  final LocalSettingsStore _localSettingsStore;
   final Uuid _uuid = const Uuid();
 
   Stream<List<OrderSummary>> watchReadyOrders() {
@@ -188,6 +197,8 @@ class PosRepository {
         amount: total,
         saleId: saleId,
       );
+
+      await _applyStockConsumption(items, now);
     });
 
     await _syncQueueService.enqueue(
@@ -225,6 +236,119 @@ class PosRepository {
       },
     );
   }
+
+  Future<void> _applyStockConsumption(
+    List<OrderItem> items,
+    DateTime now,
+  ) async {
+    if (!_localSettingsStore.read().stockTrackingEnabled) {
+      return;
+    }
+
+    for (final item in items) {
+      if (item.productId == null) continue;
+
+      final product = await (_database.select(
+        _database.products,
+      )..where((table) => table.id.equals(item.productId!))).getSingleOrNull();
+      if (product == null || product.deletedAt != null) continue;
+
+      if (product.productType == 'simple' && product.trackStock) {
+        final nextStock = ((product.stockQuantity ?? 0) - item.quantity)
+            .clamp(0, 9999999)
+            .toDouble();
+        await (_database.update(
+          _database.products,
+        )..where((table) => table.id.equals(product.id))).write(
+          ProductsCompanion(
+            stockQuantity: Value(nextStock),
+            updatedAt: Value(now),
+          ),
+        );
+        await _syncQueueService.enqueue(
+          entityType: 'products',
+          entityId: product.id,
+          operationType: 'upsert',
+          payload: {
+            'id': product.id,
+            'name': product.name,
+            'category_name': product.categoryName,
+            'product_type': product.productType,
+            'sale_price': product.salePrice,
+            'direct_cost': product.directCost,
+            'stock_quantity': nextStock,
+            'track_stock': product.trackStock,
+            'display_order': product.displayOrder,
+            'is_active': product.isActive,
+            'created_at': product.createdAt.toUtc().toIso8601String(),
+            'updated_at': now.toUtc().toIso8601String(),
+            'deleted_at': product.deletedAt?.toUtc().toIso8601String(),
+          },
+        );
+        continue;
+      }
+
+      if (product.productType == 'recipe') {
+        final removedIngredientNames =
+            (jsonDecode(item.removedIngredientsJson) as List<dynamic>)
+                .map((entry) => entry.toString())
+                .toSet();
+        final recipeRows =
+            await (_database.select(_database.productRecipeItems).join([
+                  innerJoin(
+                    _database.ingredients,
+                    _database.ingredients.id.equalsExp(
+                      _database.productRecipeItems.ingredientId,
+                    ),
+                  ),
+                ])..where(
+                  _database.productRecipeItems.productId.equals(product.id),
+                ))
+                .get();
+
+        for (final row in recipeRows) {
+          final recipeItem = row.readTable(_database.productRecipeItems);
+          final ingredient = row.readTable(_database.ingredients);
+          if (ingredient.deletedAt != null ||
+              removedIngredientNames.contains(ingredient.name)) {
+            continue;
+          }
+          if (ingredient.stockQuantity == null) {
+            continue;
+          }
+
+          final consumed = recipeItem.quantityUsed * item.quantity;
+          final nextStock = (ingredient.stockQuantity! - consumed)
+              .clamp(0, 9999999)
+              .toDouble();
+          await (_database.update(
+            _database.ingredients,
+          )..where((table) => table.id.equals(ingredient.id))).write(
+            IngredientsCompanion(
+              stockQuantity: Value(nextStock),
+              updatedAt: Value(now),
+            ),
+          );
+          await _syncQueueService.enqueue(
+            entityType: 'ingredients',
+            entityId: ingredient.id,
+            operationType: 'upsert',
+            payload: {
+              'id': ingredient.id,
+              'name': ingredient.name,
+              'unit_name': ingredient.unitName,
+              'current_unit_cost': ingredient.currentUnitCost,
+              'stock_quantity': nextStock,
+              'is_active': ingredient.isActive,
+              'created_at': ingredient.createdAt.toUtc().toIso8601String(),
+              'updated_at': now.toUtc().toIso8601String(),
+              'deleted_at': ingredient.deletedAt?.toUtc().toIso8601String(),
+            },
+          );
+        }
+      }
+    }
+  }
 }
 
 final posRepositoryProvider = Provider<PosRepository>((ref) {
@@ -232,5 +356,6 @@ final posRepositoryProvider = Provider<PosRepository>((ref) {
     ref.watch(appDatabaseProvider),
     ref.watch(cajaRepositoryProvider),
     ref.watch(syncQueueServiceProvider),
+    ref.watch(localSettingsStoreProvider),
   );
 });

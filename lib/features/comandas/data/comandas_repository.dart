@@ -286,16 +286,28 @@ class ComandasRepository {
         p.product_type,
         p.sale_price,
         p.direct_cost,
+        p.stock_quantity,
+        p.track_stock,
         p.is_active,
         CASE
           WHEN p.product_type = 'simple' THEN p.direct_cost
           ELSE COALESCE(SUM(r.quantity_used * i.current_unit_cost), 0)
         END AS calculated_cost,
-        COUNT(r.id) AS recipe_lines
+        COUNT(r.id) AS recipe_lines,
+        CASE
+          WHEN p.product_type = 'simple' THEN 1
+          WHEN COUNT(r.id) = 0 THEN 1
+          WHEN MIN(CASE
+            WHEN i.stock_quantity IS NULL THEN 999999
+            WHEN r.quantity_used <= 0 THEN 999999
+            ELSE i.stock_quantity / r.quantity_used
+          END) >= 1 THEN 1
+          ELSE 0
+        END AS is_in_stock
       FROM products p
       LEFT JOIN product_recipe_items r ON r.product_id = p.id
       LEFT JOIN ingredients i ON i.id = r.ingredient_id
-      WHERE p.is_active = 1
+      WHERE p.is_active = 1 AND p.deleted_at IS NULL
       GROUP BY p.id
       ORDER BY p.display_order ASC, p.name ASC
     ''';
@@ -321,10 +333,13 @@ class ComandasRepository {
               productType: row.read<String>('product_type'),
               salePrice: salePrice,
               directCost: row.read<double>('direct_cost'),
+              stockQuantity: row.read<double?>('stock_quantity'),
+              trackStock: row.read<bool>('track_stock'),
               isActive: row.read<bool>('is_active'),
               calculatedCost: calculatedCost,
               margin: salePrice - calculatedCost,
               recipeLines: row.read<int>('recipe_lines'),
+              isInStock: row.read<int>('is_in_stock') == 1,
             );
           }).toList(),
         );

@@ -43,6 +43,9 @@ Este documento se actualiza durante el desarrollo para consultar el avance real 
 - Pull remoto refinado para upserts incrementales sin limpiar tablas completas en cada sync
 - Pull remoto ahora evita pisar entidades que aun tienen cambios pendientes en cola local
 - Archivado local de ingredientes y productos preparado con soft delete sincronizable
+- Control opcional de stock de ingredientes agregado con toggle operativo para poder usar la app aunque aun no haya existencias cargadas
+- Stock extendido a productos simples opcionales, con enfoque en extras y descuento automatico al vender
+- Dashboard ahora muestra alertas de stock bajo y sin stock cuando el control esta activo
 - Migracion RLS agregada para permitir sincronizacion con la clave anon actual
 - README actualizado
 - Analisis y tests base pasando

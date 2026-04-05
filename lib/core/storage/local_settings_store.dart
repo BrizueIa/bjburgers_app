@@ -10,6 +10,7 @@ class LocalSettingsSnapshot {
     required this.digitalMenuUrl,
     required this.adminPin,
     required this.adminModeEnabled,
+    required this.stockTrackingEnabled,
     required this.settingsUpdatedAt,
     required this.lastSyncLabel,
     this.remoteSettingsId,
@@ -19,6 +20,7 @@ class LocalSettingsSnapshot {
   final String digitalMenuUrl;
   final String adminPin;
   final bool adminModeEnabled;
+  final bool stockTrackingEnabled;
   final DateTime settingsUpdatedAt;
   final String lastSyncLabel;
   final String? remoteSettingsId;
@@ -31,6 +33,7 @@ class LocalSettingsStore {
   static const digitalMenuUrlKey = 'digital_menu_url';
   static const adminPinKey = 'admin_pin';
   static const adminModeEnabledKey = 'admin_mode_enabled';
+  static const stockTrackingEnabledKey = 'stock_tracking_enabled';
   static const settingsUpdatedAtKey = 'settings_updated_at';
   static const lastSyncLabelKey = 'last_sync_label';
   static const remoteSettingsIdKey = 'remote_settings_id';
@@ -43,6 +46,8 @@ class LocalSettingsStore {
       digitalMenuUrl: _preferences.getString(digitalMenuUrlKey) ?? '',
       adminPin: _preferences.getString(adminPinKey) ?? '1234',
       adminModeEnabled: _preferences.getBool(adminModeEnabledKey) ?? false,
+      stockTrackingEnabled:
+          _preferences.getBool(stockTrackingEnabledKey) ?? false,
       settingsUpdatedAt:
           DateTime.tryParse(
             _preferences.getString(settingsUpdatedAtKey) ?? '',
@@ -75,6 +80,11 @@ class LocalSettingsStore {
     await _touchSettingsUpdatedAt();
   }
 
+  Future<void> saveStockTrackingEnabled(bool value) async {
+    await _preferences.setBool(stockTrackingEnabledKey, value);
+    await _touchSettingsUpdatedAt();
+  }
+
   Future<void> setLastSyncNow() async {
     final label = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
     await _preferences.setString(lastSyncLabelKey, label);
@@ -89,6 +99,7 @@ class LocalSettingsStore {
     required String digitalMenuUrl,
     required String adminPin,
     required bool adminModeEnabled,
+    required bool stockTrackingEnabled,
     required DateTime updatedAt,
     required String remoteSettingsId,
   }) async {
@@ -96,6 +107,7 @@ class LocalSettingsStore {
     await _preferences.setString(digitalMenuUrlKey, digitalMenuUrl);
     await _preferences.setString(adminPinKey, adminPin);
     await _preferences.setBool(adminModeEnabledKey, adminModeEnabled);
+    await _preferences.setBool(stockTrackingEnabledKey, stockTrackingEnabled);
     await _preferences.setString(
       settingsUpdatedAtKey,
       updatedAt.toIso8601String(),

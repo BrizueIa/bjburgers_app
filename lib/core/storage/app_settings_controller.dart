@@ -7,11 +7,13 @@ class AppSettingsState {
   const AppSettingsState({
     required this.businessName,
     required this.digitalMenuUrl,
+    required this.stockTrackingEnabled,
     required this.lastSyncLabel,
   });
 
   final String businessName;
   final String digitalMenuUrl;
+  final bool stockTrackingEnabled;
   final String lastSyncLabel;
 
   bool get hasSupabaseConfig => AppEnvironment.hasSupabaseConfig;
@@ -19,11 +21,13 @@ class AppSettingsState {
   AppSettingsState copyWith({
     String? businessName,
     String? digitalMenuUrl,
+    bool? stockTrackingEnabled,
     String? lastSyncLabel,
   }) {
     return AppSettingsState(
       businessName: businessName ?? this.businessName,
       digitalMenuUrl: digitalMenuUrl ?? this.digitalMenuUrl,
+      stockTrackingEnabled: stockTrackingEnabled ?? this.stockTrackingEnabled,
       lastSyncLabel: lastSyncLabel ?? this.lastSyncLabel,
     );
   }
@@ -39,6 +43,7 @@ class AppSettingsController extends StateNotifier<AppSettingsState> {
     return AppSettingsState(
       businessName: snapshot.businessName,
       digitalMenuUrl: snapshot.digitalMenuUrl,
+      stockTrackingEnabled: snapshot.stockTrackingEnabled,
       lastSyncLabel: snapshot.lastSyncLabel,
     );
   }
@@ -51,6 +56,11 @@ class AppSettingsController extends StateNotifier<AppSettingsState> {
   Future<void> updateDigitalMenuUrl(String value) async {
     state = state.copyWith(digitalMenuUrl: value);
     await _ref.read(localSettingsStoreProvider).saveDigitalMenuUrl(value);
+  }
+
+  Future<void> updateStockTrackingEnabled(bool value) async {
+    state = state.copyWith(stockTrackingEnabled: value);
+    await _ref.read(localSettingsStoreProvider).saveStockTrackingEnabled(value);
   }
 
   Future<void> recordSyncAttempt() async {

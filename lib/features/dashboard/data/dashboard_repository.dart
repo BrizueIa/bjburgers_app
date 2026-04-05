@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/app_database_provider.dart';
+import '../../../core/storage/local_settings_store.dart';
 
 class DashboardSnapshot {
   const DashboardSnapshot({
@@ -17,6 +18,9 @@ class DashboardSnapshot {
     required this.activeCashExpected,
     required this.activeCashTransfer,
     required this.hasOpenCashSession,
+    required this.lowStockCount,
+    required this.outOfStockCount,
+    required this.stockTrackingEnabled,
   });
 
   final double totalSalesToday;
@@ -30,12 +34,16 @@ class DashboardSnapshot {
   final double activeCashExpected;
   final double activeCashTransfer;
   final bool hasOpenCashSession;
+  final int lowStockCount;
+  final int outOfStockCount;
+  final bool stockTrackingEnabled;
 }
 
 class DashboardRepository {
-  DashboardRepository(this._database);
+  DashboardRepository(this._database, this._localSettingsStore);
 
   final AppDatabase _database;
+  final LocalSettingsStore _localSettingsStore;
 
   Stream<DashboardSnapshot> watchSnapshot() {
     return Stream<DashboardSnapshot>.multi((controller) async {
@@ -52,7 +60,6 @@ class DashboardRepository {
   Future<DashboardSnapshot> fetchSnapshot() async {
     final now = DateTime.now();
     final startOfDay = DateTime(now.year, now.month, now.day);
-    final startIso = startOfDay.toIso8601String();
 
     final salesRow = await _database
         .customSelect(
@@ -65,7 +72,7 @@ class DashboardRepository {
       FROM sales
       WHERE sold_at >= ?
       ''',
-          variables: [Variable<String>(startIso)],
+          variables: [Variable<DateTime>(startOfDay)],
           readsFrom: {_database.sales},
         )
         .getSingle();
@@ -80,7 +87,7 @@ class DashboardRepository {
       FROM orders
       WHERE created_at >= ?
       ''',
-          variables: [Variable<String>(startIso)],
+          variables: [Variable<DateTime>(startOfDay)],
           readsFrom: {_database.orders},
         )
         .getSingle();
@@ -92,7 +99,7 @@ class DashboardRepository {
       FROM ingredient_purchases
       WHERE purchased_at >= ?
       ''',
-          variables: [Variable<String>(startIso)],
+          variables: [Variable<DateTime>(startOfDay)],
           readsFrom: {_database.ingredientPurchases},
         )
         .getSingle();
@@ -121,6 +128,11 @@ class DashboardRepository {
     double activeCashExpected = 0;
     double activeCashTransfer = 0;
     bool hasOpenCashSession = false;
+    final stockTrackingEnabled = _localSettingsStore
+        .read()
+        .stockTrackingEnabled;
+    var lowStockCount = 0;
+    var outOfStockCount = 0;
 
     if (cashRows.isNotEmpty) {
       final row = cashRows.first;
@@ -132,6 +144,41 @@ class DashboardRepository {
           row.read<double>('manual_deposits') +
           row.read<double>('manual_adjustments') -
           row.read<double>('manual_withdrawals');
+    }
+
+    if (stockTrackingEnabled) {
+      final lowIngredients = await _database
+          .customSelect(
+            '''
+        SELECT
+          COALESCE(SUM(CASE WHEN stock_quantity > 0 AND stock_quantity <= 5 THEN 1 ELSE 0 END), 0) AS low_count,
+          COALESCE(SUM(CASE WHEN stock_quantity <= 0 THEN 1 ELSE 0 END), 0) AS out_count
+        FROM ingredients
+        WHERE deleted_at IS NULL AND is_active = 1 AND stock_quantity IS NOT NULL
+        ''',
+            readsFrom: {_database.ingredients},
+          )
+          .getSingle();
+
+      final lowProducts = await _database
+          .customSelect(
+            '''
+        SELECT
+          COALESCE(SUM(CASE WHEN track_stock = 1 AND stock_quantity > 0 AND stock_quantity <= 5 THEN 1 ELSE 0 END), 0) AS low_count,
+          COALESCE(SUM(CASE WHEN track_stock = 1 AND stock_quantity <= 0 THEN 1 ELSE 0 END), 0) AS out_count
+        FROM products
+        WHERE deleted_at IS NULL AND is_active = 1
+        ''',
+            readsFrom: {_database.products},
+          )
+          .getSingle();
+
+      lowStockCount =
+          lowIngredients.read<int>('low_count') +
+          lowProducts.read<int>('low_count');
+      outOfStockCount =
+          lowIngredients.read<int>('out_count') +
+          lowProducts.read<int>('out_count');
     }
 
     return DashboardSnapshot(
@@ -146,10 +193,16 @@ class DashboardRepository {
       activeCashExpected: activeCashExpected,
       activeCashTransfer: activeCashTransfer,
       hasOpenCashSession: hasOpenCashSession,
+      lowStockCount: lowStockCount,
+      outOfStockCount: outOfStockCount,
+      stockTrackingEnabled: stockTrackingEnabled,
     );
   }
 }
 
 final dashboardRepositoryProvider = Provider<DashboardRepository>((ref) {
-  return DashboardRepository(ref.watch(appDatabaseProvider));
+  return DashboardRepository(
+    ref.watch(appDatabaseProvider),
+    ref.watch(localSettingsStoreProvider),
+  );
 });

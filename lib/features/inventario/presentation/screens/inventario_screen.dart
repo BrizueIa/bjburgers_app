@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../../../core/admin/admin_mode_controller.dart';
 import '../../../../core/database/app_database.dart';
+import '../../../../core/storage/app_settings_controller.dart';
 import '../../data/inventory_repository.dart';
 import '../controllers/inventory_controller.dart';
 
@@ -107,6 +108,7 @@ class _IngredientsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final ingredients = ref.watch(ingredientsProvider);
     final admin = ref.watch(adminModeProvider);
+    final settings = ref.watch(appSettingsProvider);
     final currency = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
 
     return ingredients.when(
@@ -145,6 +147,14 @@ class _IngredientsTab extends ConsumerWidget {
                           ingredient.isActive ? 'Activo' : 'Inactivo',
                         ),
                       ),
+                      if (settings.stockTrackingEnabled)
+                        Chip(
+                          label: Text(
+                            ingredient.stockQuantity == null
+                                ? 'Stock sin definir'
+                                : 'Stock: ${ingredient.stockQuantity!.toStringAsFixed(2)}',
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -205,6 +215,7 @@ class _ProductsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final products = ref.watch(productSummariesProvider);
     final admin = ref.watch(adminModeProvider);
+    final settings = ref.watch(appSettingsProvider);
     final currency = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
 
     return products.when(
@@ -257,6 +268,20 @@ class _ProductsTab extends ConsumerWidget {
                           'Margen: ${currency.format(product.margin)}',
                         ),
                       ),
+                      if (settings.stockTrackingEnabled)
+                        Chip(
+                          label: Text(
+                            product.isInStock ? 'Con stock' : 'Sin stock',
+                          ),
+                        ),
+                      if (settings.stockTrackingEnabled && product.trackStock)
+                        Chip(
+                          label: Text(
+                            product.stockQuantity == null
+                                ? 'Stock sin definir'
+                                : 'Stock prod.: ${product.stockQuantity!.toStringAsFixed(2)}',
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -387,6 +412,7 @@ class _IngredientDialogState extends ConsumerState<_IngredientDialog> {
   late final TextEditingController _nameController;
   late final TextEditingController _unitController;
   late final TextEditingController _costController;
+  late final TextEditingController _stockController;
   late bool _isActive;
 
   @override
@@ -403,6 +429,11 @@ class _IngredientDialogState extends ConsumerState<_IngredientDialog> {
           ? ''
           : widget.ingredient!.currentUnitCost.toStringAsFixed(2),
     );
+    _stockController = TextEditingController(
+      text: widget.ingredient?.stockQuantity == null
+          ? ''
+          : widget.ingredient!.stockQuantity!.toStringAsFixed(2),
+    );
     _isActive = widget.ingredient?.isActive ?? true;
   }
 
@@ -411,11 +442,15 @@ class _IngredientDialogState extends ConsumerState<_IngredientDialog> {
     _nameController.dispose();
     _unitController.dispose();
     _costController.dispose();
+    _stockController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final stockTrackingEnabled = ref
+        .watch(appSettingsProvider)
+        .stockTrackingEnabled;
     return AlertDialog(
       title: Text(
         widget.ingredient == null ? 'Nuevo ingrediente' : 'Editar ingrediente',
@@ -444,6 +479,16 @@ class _IngredientDialogState extends ConsumerState<_IngredientDialog> {
                 labelText: 'Costo unitario actual',
               ),
             ),
+            if (stockTrackingEnabled) ...[
+              const SizedBox(height: 12),
+              TextField(
+                controller: _stockController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(labelText: 'Stock actual'),
+              ),
+            ],
             const SizedBox(height: 12),
             SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
@@ -464,6 +509,9 @@ class _IngredientDialogState extends ConsumerState<_IngredientDialog> {
             final name = _nameController.text.trim();
             final unitName = _unitController.text.trim();
             final cost = double.tryParse(_costController.text.trim()) ?? 0;
+            final stock = stockTrackingEnabled
+                ? double.tryParse(_stockController.text.trim())
+                : null;
 
             if (name.isEmpty || unitName.isEmpty) {
               return;
@@ -476,6 +524,7 @@ class _IngredientDialogState extends ConsumerState<_IngredientDialog> {
                   name: name,
                   unitName: unitName,
                   currentUnitCost: cost,
+                  stockQuantity: stock,
                   isActive: _isActive,
                 );
             if (!context.mounted) return;
@@ -503,8 +552,10 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
   late final TextEditingController _categoryController;
   late final TextEditingController _salePriceController;
   late final TextEditingController _directCostController;
+  late final TextEditingController _stockController;
   late String _productType;
   late bool _isActive;
+  late bool _trackStock;
   late final List<_RecipeEditorItem> _recipeItems;
 
   @override
@@ -524,8 +575,14 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
           ? ''
           : widget.product!.directCost.toStringAsFixed(2),
     );
+    _stockController = TextEditingController(
+      text: widget.product?.stockQuantity == null
+          ? ''
+          : widget.product!.stockQuantity!.toStringAsFixed(2),
+    );
     _productType = widget.product?.productType ?? 'recipe';
     _isActive = widget.product?.isActive ?? true;
+    _trackStock = widget.product?.trackStock ?? false;
     _recipeItems = widget.recipeDraft
         .map(
           (item) => _RecipeEditorItem(
@@ -550,6 +607,7 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
     _categoryController.dispose();
     _salePriceController.dispose();
     _directCostController.dispose();
+    _stockController.dispose();
     for (final item in _recipeItems) {
       item.quantityController.dispose();
     }
@@ -559,6 +617,9 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
   @override
   Widget build(BuildContext context) {
     final ingredients = ref.watch(ingredientsProvider);
+    final stockTrackingEnabled = ref
+        .watch(appSettingsProvider)
+        .stockTrackingEnabled;
 
     return AlertDialog(
       title: Text(
@@ -622,6 +683,28 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
                       : 'Costo directo opcional',
                 ),
               ),
+              if (_productType == 'simple' && stockTrackingEnabled) ...[
+                const SizedBox(height: 12),
+                SwitchListTile.adaptive(
+                  contentPadding: EdgeInsets.zero,
+                  value: _trackStock,
+                  title: const Text('Controlar stock de este producto'),
+                  subtitle: const Text(
+                    'Activalo para extras. Dejalo apagado para bebidas que compras y revendes sin inventario.',
+                  ),
+                  onChanged: (value) => setState(() => _trackStock = value),
+                ),
+                if (_trackStock)
+                  TextField(
+                    controller: _stockController,
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Stock actual del producto',
+                    ),
+                  ),
+              ],
               const SizedBox(height: 12),
               SwitchListTile.adaptive(
                 contentPadding: EdgeInsets.zero,
@@ -753,6 +836,9 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
                 double.tryParse(_salePriceController.text.trim()) ?? -1;
             final directCost =
                 double.tryParse(_directCostController.text.trim()) ?? 0;
+            final stockQuantity = _trackStock
+                ? double.tryParse(_stockController.text.trim())
+                : null;
             if (name.isEmpty || salePrice < 0) {
               return;
             }
@@ -787,6 +873,11 @@ class _ProductDialogState extends ConsumerState<_ProductDialog> {
                   productType: _productType,
                   salePrice: salePrice,
                   directCost: directCost,
+                  stockQuantity: stockQuantity,
+                  trackStock:
+                      _productType == 'simple' &&
+                      stockTrackingEnabled &&
+                      _trackStock,
                   isActive: _isActive,
                   recipeItems: recipe,
                 );

@@ -51,6 +51,17 @@ class $IngredientsTable extends Ingredients
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _stockQuantityMeta = const VerificationMeta(
+    'stockQuantity',
+  );
+  @override
+  late final GeneratedColumn<double> stockQuantity = GeneratedColumn<double>(
+    'stock_quantity',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _isActiveMeta = const VerificationMeta(
     'isActive',
   );
@@ -105,6 +116,7 @@ class $IngredientsTable extends Ingredients
     name,
     unitName,
     currentUnitCost,
+    stockQuantity,
     isActive,
     createdAt,
     updatedAt,
@@ -147,6 +159,15 @@ class $IngredientsTable extends Ingredients
         currentUnitCost.isAcceptableOrUnknown(
           data['current_unit_cost']!,
           _currentUnitCostMeta,
+        ),
+      );
+    }
+    if (data.containsKey('stock_quantity')) {
+      context.handle(
+        _stockQuantityMeta,
+        stockQuantity.isAcceptableOrUnknown(
+          data['stock_quantity']!,
+          _stockQuantityMeta,
         ),
       );
     }
@@ -203,6 +224,10 @@ class $IngredientsTable extends Ingredients
         DriftSqlType.double,
         data['${effectivePrefix}current_unit_cost'],
       )!,
+      stockQuantity: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}stock_quantity'],
+      ),
       isActive: attachedDatabase.typeMapping.read(
         DriftSqlType.bool,
         data['${effectivePrefix}is_active'],
@@ -233,6 +258,7 @@ class Ingredient extends DataClass implements Insertable<Ingredient> {
   final String name;
   final String unitName;
   final double currentUnitCost;
+  final double? stockQuantity;
   final bool isActive;
   final DateTime createdAt;
   final DateTime updatedAt;
@@ -242,6 +268,7 @@ class Ingredient extends DataClass implements Insertable<Ingredient> {
     required this.name,
     required this.unitName,
     required this.currentUnitCost,
+    this.stockQuantity,
     required this.isActive,
     required this.createdAt,
     required this.updatedAt,
@@ -254,6 +281,9 @@ class Ingredient extends DataClass implements Insertable<Ingredient> {
     map['name'] = Variable<String>(name);
     map['unit_name'] = Variable<String>(unitName);
     map['current_unit_cost'] = Variable<double>(currentUnitCost);
+    if (!nullToAbsent || stockQuantity != null) {
+      map['stock_quantity'] = Variable<double>(stockQuantity);
+    }
     map['is_active'] = Variable<bool>(isActive);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['updated_at'] = Variable<DateTime>(updatedAt);
@@ -269,6 +299,9 @@ class Ingredient extends DataClass implements Insertable<Ingredient> {
       name: Value(name),
       unitName: Value(unitName),
       currentUnitCost: Value(currentUnitCost),
+      stockQuantity: stockQuantity == null && nullToAbsent
+          ? const Value.absent()
+          : Value(stockQuantity),
       isActive: Value(isActive),
       createdAt: Value(createdAt),
       updatedAt: Value(updatedAt),
@@ -288,6 +321,7 @@ class Ingredient extends DataClass implements Insertable<Ingredient> {
       name: serializer.fromJson<String>(json['name']),
       unitName: serializer.fromJson<String>(json['unitName']),
       currentUnitCost: serializer.fromJson<double>(json['currentUnitCost']),
+      stockQuantity: serializer.fromJson<double?>(json['stockQuantity']),
       isActive: serializer.fromJson<bool>(json['isActive']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
@@ -302,6 +336,7 @@ class Ingredient extends DataClass implements Insertable<Ingredient> {
       'name': serializer.toJson<String>(name),
       'unitName': serializer.toJson<String>(unitName),
       'currentUnitCost': serializer.toJson<double>(currentUnitCost),
+      'stockQuantity': serializer.toJson<double?>(stockQuantity),
       'isActive': serializer.toJson<bool>(isActive),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'updatedAt': serializer.toJson<DateTime>(updatedAt),
@@ -314,6 +349,7 @@ class Ingredient extends DataClass implements Insertable<Ingredient> {
     String? name,
     String? unitName,
     double? currentUnitCost,
+    Value<double?> stockQuantity = const Value.absent(),
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
@@ -323,6 +359,9 @@ class Ingredient extends DataClass implements Insertable<Ingredient> {
     name: name ?? this.name,
     unitName: unitName ?? this.unitName,
     currentUnitCost: currentUnitCost ?? this.currentUnitCost,
+    stockQuantity: stockQuantity.present
+        ? stockQuantity.value
+        : this.stockQuantity,
     isActive: isActive ?? this.isActive,
     createdAt: createdAt ?? this.createdAt,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -336,6 +375,9 @@ class Ingredient extends DataClass implements Insertable<Ingredient> {
       currentUnitCost: data.currentUnitCost.present
           ? data.currentUnitCost.value
           : this.currentUnitCost,
+      stockQuantity: data.stockQuantity.present
+          ? data.stockQuantity.value
+          : this.stockQuantity,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
@@ -350,6 +392,7 @@ class Ingredient extends DataClass implements Insertable<Ingredient> {
           ..write('name: $name, ')
           ..write('unitName: $unitName, ')
           ..write('currentUnitCost: $currentUnitCost, ')
+          ..write('stockQuantity: $stockQuantity, ')
           ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -364,6 +407,7 @@ class Ingredient extends DataClass implements Insertable<Ingredient> {
     name,
     unitName,
     currentUnitCost,
+    stockQuantity,
     isActive,
     createdAt,
     updatedAt,
@@ -377,6 +421,7 @@ class Ingredient extends DataClass implements Insertable<Ingredient> {
           other.name == this.name &&
           other.unitName == this.unitName &&
           other.currentUnitCost == this.currentUnitCost &&
+          other.stockQuantity == this.stockQuantity &&
           other.isActive == this.isActive &&
           other.createdAt == this.createdAt &&
           other.updatedAt == this.updatedAt &&
@@ -388,6 +433,7 @@ class IngredientsCompanion extends UpdateCompanion<Ingredient> {
   final Value<String> name;
   final Value<String> unitName;
   final Value<double> currentUnitCost;
+  final Value<double?> stockQuantity;
   final Value<bool> isActive;
   final Value<DateTime> createdAt;
   final Value<DateTime> updatedAt;
@@ -398,6 +444,7 @@ class IngredientsCompanion extends UpdateCompanion<Ingredient> {
     this.name = const Value.absent(),
     this.unitName = const Value.absent(),
     this.currentUnitCost = const Value.absent(),
+    this.stockQuantity = const Value.absent(),
     this.isActive = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.updatedAt = const Value.absent(),
@@ -409,6 +456,7 @@ class IngredientsCompanion extends UpdateCompanion<Ingredient> {
     required String name,
     this.unitName = const Value.absent(),
     this.currentUnitCost = const Value.absent(),
+    this.stockQuantity = const Value.absent(),
     this.isActive = const Value.absent(),
     required DateTime createdAt,
     required DateTime updatedAt,
@@ -423,6 +471,7 @@ class IngredientsCompanion extends UpdateCompanion<Ingredient> {
     Expression<String>? name,
     Expression<String>? unitName,
     Expression<double>? currentUnitCost,
+    Expression<double>? stockQuantity,
     Expression<bool>? isActive,
     Expression<DateTime>? createdAt,
     Expression<DateTime>? updatedAt,
@@ -434,6 +483,7 @@ class IngredientsCompanion extends UpdateCompanion<Ingredient> {
       if (name != null) 'name': name,
       if (unitName != null) 'unit_name': unitName,
       if (currentUnitCost != null) 'current_unit_cost': currentUnitCost,
+      if (stockQuantity != null) 'stock_quantity': stockQuantity,
       if (isActive != null) 'is_active': isActive,
       if (createdAt != null) 'created_at': createdAt,
       if (updatedAt != null) 'updated_at': updatedAt,
@@ -447,6 +497,7 @@ class IngredientsCompanion extends UpdateCompanion<Ingredient> {
     Value<String>? name,
     Value<String>? unitName,
     Value<double>? currentUnitCost,
+    Value<double?>? stockQuantity,
     Value<bool>? isActive,
     Value<DateTime>? createdAt,
     Value<DateTime>? updatedAt,
@@ -458,6 +509,7 @@ class IngredientsCompanion extends UpdateCompanion<Ingredient> {
       name: name ?? this.name,
       unitName: unitName ?? this.unitName,
       currentUnitCost: currentUnitCost ?? this.currentUnitCost,
+      stockQuantity: stockQuantity ?? this.stockQuantity,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
@@ -480,6 +532,9 @@ class IngredientsCompanion extends UpdateCompanion<Ingredient> {
     }
     if (currentUnitCost.present) {
       map['current_unit_cost'] = Variable<double>(currentUnitCost.value);
+    }
+    if (stockQuantity.present) {
+      map['stock_quantity'] = Variable<double>(stockQuantity.value);
     }
     if (isActive.present) {
       map['is_active'] = Variable<bool>(isActive.value);
@@ -506,6 +561,7 @@ class IngredientsCompanion extends UpdateCompanion<Ingredient> {
           ..write('name: $name, ')
           ..write('unitName: $unitName, ')
           ..write('currentUnitCost: $currentUnitCost, ')
+          ..write('stockQuantity: $stockQuantity, ')
           ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt, ')
           ..write('updatedAt: $updatedAt, ')
@@ -584,6 +640,32 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _stockQuantityMeta = const VerificationMeta(
+    'stockQuantity',
+  );
+  @override
+  late final GeneratedColumn<double> stockQuantity = GeneratedColumn<double>(
+    'stock_quantity',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _trackStockMeta = const VerificationMeta(
+    'trackStock',
+  );
+  @override
+  late final GeneratedColumn<bool> trackStock = GeneratedColumn<bool>(
+    'track_stock',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("track_stock" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   static const VerificationMeta _displayOrderMeta = const VerificationMeta(
     'displayOrder',
   );
@@ -652,6 +734,8 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
     productType,
     salePrice,
     directCost,
+    stockQuantity,
+    trackStock,
     displayOrder,
     isActive,
     createdAt,
@@ -715,6 +799,21 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
       context.handle(
         _directCostMeta,
         directCost.isAcceptableOrUnknown(data['direct_cost']!, _directCostMeta),
+      );
+    }
+    if (data.containsKey('stock_quantity')) {
+      context.handle(
+        _stockQuantityMeta,
+        stockQuantity.isAcceptableOrUnknown(
+          data['stock_quantity']!,
+          _stockQuantityMeta,
+        ),
+      );
+    }
+    if (data.containsKey('track_stock')) {
+      context.handle(
+        _trackStockMeta,
+        trackStock.isAcceptableOrUnknown(data['track_stock']!, _trackStockMeta),
       );
     }
     if (data.containsKey('display_order')) {
@@ -787,6 +886,14 @@ class $ProductsTable extends Products with TableInfo<$ProductsTable, Product> {
         DriftSqlType.double,
         data['${effectivePrefix}direct_cost'],
       )!,
+      stockQuantity: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}stock_quantity'],
+      ),
+      trackStock: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}track_stock'],
+      )!,
       displayOrder: attachedDatabase.typeMapping.read(
         DriftSqlType.int,
         data['${effectivePrefix}display_order'],
@@ -823,6 +930,8 @@ class Product extends DataClass implements Insertable<Product> {
   final String productType;
   final double salePrice;
   final double directCost;
+  final double? stockQuantity;
+  final bool trackStock;
   final int displayOrder;
   final bool isActive;
   final DateTime createdAt;
@@ -835,6 +944,8 @@ class Product extends DataClass implements Insertable<Product> {
     required this.productType,
     required this.salePrice,
     required this.directCost,
+    this.stockQuantity,
+    required this.trackStock,
     required this.displayOrder,
     required this.isActive,
     required this.createdAt,
@@ -852,6 +963,10 @@ class Product extends DataClass implements Insertable<Product> {
     map['product_type'] = Variable<String>(productType);
     map['sale_price'] = Variable<double>(salePrice);
     map['direct_cost'] = Variable<double>(directCost);
+    if (!nullToAbsent || stockQuantity != null) {
+      map['stock_quantity'] = Variable<double>(stockQuantity);
+    }
+    map['track_stock'] = Variable<bool>(trackStock);
     map['display_order'] = Variable<int>(displayOrder);
     map['is_active'] = Variable<bool>(isActive);
     map['created_at'] = Variable<DateTime>(createdAt);
@@ -872,6 +987,10 @@ class Product extends DataClass implements Insertable<Product> {
       productType: Value(productType),
       salePrice: Value(salePrice),
       directCost: Value(directCost),
+      stockQuantity: stockQuantity == null && nullToAbsent
+          ? const Value.absent()
+          : Value(stockQuantity),
+      trackStock: Value(trackStock),
       displayOrder: Value(displayOrder),
       isActive: Value(isActive),
       createdAt: Value(createdAt),
@@ -894,6 +1013,8 @@ class Product extends DataClass implements Insertable<Product> {
       productType: serializer.fromJson<String>(json['productType']),
       salePrice: serializer.fromJson<double>(json['salePrice']),
       directCost: serializer.fromJson<double>(json['directCost']),
+      stockQuantity: serializer.fromJson<double?>(json['stockQuantity']),
+      trackStock: serializer.fromJson<bool>(json['trackStock']),
       displayOrder: serializer.fromJson<int>(json['displayOrder']),
       isActive: serializer.fromJson<bool>(json['isActive']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -911,6 +1032,8 @@ class Product extends DataClass implements Insertable<Product> {
       'productType': serializer.toJson<String>(productType),
       'salePrice': serializer.toJson<double>(salePrice),
       'directCost': serializer.toJson<double>(directCost),
+      'stockQuantity': serializer.toJson<double?>(stockQuantity),
+      'trackStock': serializer.toJson<bool>(trackStock),
       'displayOrder': serializer.toJson<int>(displayOrder),
       'isActive': serializer.toJson<bool>(isActive),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -926,6 +1049,8 @@ class Product extends DataClass implements Insertable<Product> {
     String? productType,
     double? salePrice,
     double? directCost,
+    Value<double?> stockQuantity = const Value.absent(),
+    bool? trackStock,
     int? displayOrder,
     bool? isActive,
     DateTime? createdAt,
@@ -938,6 +1063,10 @@ class Product extends DataClass implements Insertable<Product> {
     productType: productType ?? this.productType,
     salePrice: salePrice ?? this.salePrice,
     directCost: directCost ?? this.directCost,
+    stockQuantity: stockQuantity.present
+        ? stockQuantity.value
+        : this.stockQuantity,
+    trackStock: trackStock ?? this.trackStock,
     displayOrder: displayOrder ?? this.displayOrder,
     isActive: isActive ?? this.isActive,
     createdAt: createdAt ?? this.createdAt,
@@ -958,6 +1087,12 @@ class Product extends DataClass implements Insertable<Product> {
       directCost: data.directCost.present
           ? data.directCost.value
           : this.directCost,
+      stockQuantity: data.stockQuantity.present
+          ? data.stockQuantity.value
+          : this.stockQuantity,
+      trackStock: data.trackStock.present
+          ? data.trackStock.value
+          : this.trackStock,
       displayOrder: data.displayOrder.present
           ? data.displayOrder.value
           : this.displayOrder,
@@ -977,6 +1112,8 @@ class Product extends DataClass implements Insertable<Product> {
           ..write('productType: $productType, ')
           ..write('salePrice: $salePrice, ')
           ..write('directCost: $directCost, ')
+          ..write('stockQuantity: $stockQuantity, ')
+          ..write('trackStock: $trackStock, ')
           ..write('displayOrder: $displayOrder, ')
           ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt, ')
@@ -994,6 +1131,8 @@ class Product extends DataClass implements Insertable<Product> {
     productType,
     salePrice,
     directCost,
+    stockQuantity,
+    trackStock,
     displayOrder,
     isActive,
     createdAt,
@@ -1010,6 +1149,8 @@ class Product extends DataClass implements Insertable<Product> {
           other.productType == this.productType &&
           other.salePrice == this.salePrice &&
           other.directCost == this.directCost &&
+          other.stockQuantity == this.stockQuantity &&
+          other.trackStock == this.trackStock &&
           other.displayOrder == this.displayOrder &&
           other.isActive == this.isActive &&
           other.createdAt == this.createdAt &&
@@ -1024,6 +1165,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
   final Value<String> productType;
   final Value<double> salePrice;
   final Value<double> directCost;
+  final Value<double?> stockQuantity;
+  final Value<bool> trackStock;
   final Value<int> displayOrder;
   final Value<bool> isActive;
   final Value<DateTime> createdAt;
@@ -1037,6 +1180,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     this.productType = const Value.absent(),
     this.salePrice = const Value.absent(),
     this.directCost = const Value.absent(),
+    this.stockQuantity = const Value.absent(),
+    this.trackStock = const Value.absent(),
     this.displayOrder = const Value.absent(),
     this.isActive = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -1051,6 +1196,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     required String productType,
     required double salePrice,
     this.directCost = const Value.absent(),
+    this.stockQuantity = const Value.absent(),
+    this.trackStock = const Value.absent(),
     this.displayOrder = const Value.absent(),
     this.isActive = const Value.absent(),
     required DateTime createdAt,
@@ -1070,6 +1217,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Expression<String>? productType,
     Expression<double>? salePrice,
     Expression<double>? directCost,
+    Expression<double>? stockQuantity,
+    Expression<bool>? trackStock,
     Expression<int>? displayOrder,
     Expression<bool>? isActive,
     Expression<DateTime>? createdAt,
@@ -1084,6 +1233,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       if (productType != null) 'product_type': productType,
       if (salePrice != null) 'sale_price': salePrice,
       if (directCost != null) 'direct_cost': directCost,
+      if (stockQuantity != null) 'stock_quantity': stockQuantity,
+      if (trackStock != null) 'track_stock': trackStock,
       if (displayOrder != null) 'display_order': displayOrder,
       if (isActive != null) 'is_active': isActive,
       if (createdAt != null) 'created_at': createdAt,
@@ -1100,6 +1251,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     Value<String>? productType,
     Value<double>? salePrice,
     Value<double>? directCost,
+    Value<double?>? stockQuantity,
+    Value<bool>? trackStock,
     Value<int>? displayOrder,
     Value<bool>? isActive,
     Value<DateTime>? createdAt,
@@ -1114,6 +1267,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
       productType: productType ?? this.productType,
       salePrice: salePrice ?? this.salePrice,
       directCost: directCost ?? this.directCost,
+      stockQuantity: stockQuantity ?? this.stockQuantity,
+      trackStock: trackStock ?? this.trackStock,
       displayOrder: displayOrder ?? this.displayOrder,
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
@@ -1143,6 +1298,12 @@ class ProductsCompanion extends UpdateCompanion<Product> {
     }
     if (directCost.present) {
       map['direct_cost'] = Variable<double>(directCost.value);
+    }
+    if (stockQuantity.present) {
+      map['stock_quantity'] = Variable<double>(stockQuantity.value);
+    }
+    if (trackStock.present) {
+      map['track_stock'] = Variable<bool>(trackStock.value);
     }
     if (displayOrder.present) {
       map['display_order'] = Variable<int>(displayOrder.value);
@@ -1174,6 +1335,8 @@ class ProductsCompanion extends UpdateCompanion<Product> {
           ..write('productType: $productType, ')
           ..write('salePrice: $salePrice, ')
           ..write('directCost: $directCost, ')
+          ..write('stockQuantity: $stockQuantity, ')
+          ..write('trackStock: $trackStock, ')
           ..write('displayOrder: $displayOrder, ')
           ..write('isActive: $isActive, ')
           ..write('createdAt: $createdAt, ')
@@ -6597,6 +6760,7 @@ typedef $$IngredientsTableCreateCompanionBuilder =
       required String name,
       Value<String> unitName,
       Value<double> currentUnitCost,
+      Value<double?> stockQuantity,
       Value<bool> isActive,
       required DateTime createdAt,
       required DateTime updatedAt,
@@ -6609,6 +6773,7 @@ typedef $$IngredientsTableUpdateCompanionBuilder =
       Value<String> name,
       Value<String> unitName,
       Value<double> currentUnitCost,
+      Value<double?> stockQuantity,
       Value<bool> isActive,
       Value<DateTime> createdAt,
       Value<DateTime> updatedAt,
@@ -6698,6 +6863,11 @@ class $$IngredientsTableFilterComposer
 
   ColumnFilters<double> get currentUnitCost => $composableBuilder(
     column: $table.currentUnitCost,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get stockQuantity => $composableBuilder(
+    column: $table.stockQuantity,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -6801,6 +6971,11 @@ class $$IngredientsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get stockQuantity => $composableBuilder(
+    column: $table.stockQuantity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<bool> get isActive => $composableBuilder(
     column: $table.isActive,
     builder: (column) => ColumnOrderings(column),
@@ -6842,6 +7017,11 @@ class $$IngredientsTableAnnotationComposer
 
   GeneratedColumn<double> get currentUnitCost => $composableBuilder(
     column: $table.currentUnitCost,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get stockQuantity => $composableBuilder(
+    column: $table.stockQuantity,
     builder: (column) => column,
   );
 
@@ -6945,6 +7125,7 @@ class $$IngredientsTableTableManager
                 Value<String> name = const Value.absent(),
                 Value<String> unitName = const Value.absent(),
                 Value<double> currentUnitCost = const Value.absent(),
+                Value<double?> stockQuantity = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<DateTime> updatedAt = const Value.absent(),
@@ -6955,6 +7136,7 @@ class $$IngredientsTableTableManager
                 name: name,
                 unitName: unitName,
                 currentUnitCost: currentUnitCost,
+                stockQuantity: stockQuantity,
                 isActive: isActive,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -6967,6 +7149,7 @@ class $$IngredientsTableTableManager
                 required String name,
                 Value<String> unitName = const Value.absent(),
                 Value<double> currentUnitCost = const Value.absent(),
+                Value<double?> stockQuantity = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 required DateTime createdAt,
                 required DateTime updatedAt,
@@ -6977,6 +7160,7 @@ class $$IngredientsTableTableManager
                 name: name,
                 unitName: unitName,
                 currentUnitCost: currentUnitCost,
+                stockQuantity: stockQuantity,
                 isActive: isActive,
                 createdAt: createdAt,
                 updatedAt: updatedAt,
@@ -7080,6 +7264,8 @@ typedef $$ProductsTableCreateCompanionBuilder =
       required String productType,
       required double salePrice,
       Value<double> directCost,
+      Value<double?> stockQuantity,
+      Value<bool> trackStock,
       Value<int> displayOrder,
       Value<bool> isActive,
       required DateTime createdAt,
@@ -7095,6 +7281,8 @@ typedef $$ProductsTableUpdateCompanionBuilder =
       Value<String> productType,
       Value<double> salePrice,
       Value<double> directCost,
+      Value<double?> stockQuantity,
+      Value<bool> trackStock,
       Value<int> displayOrder,
       Value<bool> isActive,
       Value<DateTime> createdAt,
@@ -7204,6 +7392,16 @@ class $$ProductsTableFilterComposer
 
   ColumnFilters<double> get directCost => $composableBuilder(
     column: $table.directCost,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get stockQuantity => $composableBuilder(
+    column: $table.stockQuantity,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get trackStock => $composableBuilder(
+    column: $table.trackStock,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -7347,6 +7545,16 @@ class $$ProductsTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get stockQuantity => $composableBuilder(
+    column: $table.stockQuantity,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<bool> get trackStock => $composableBuilder(
+    column: $table.trackStock,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<int> get displayOrder => $composableBuilder(
     column: $table.displayOrder,
     builder: (column) => ColumnOrderings(column),
@@ -7403,6 +7611,16 @@ class $$ProductsTableAnnotationComposer
 
   GeneratedColumn<double> get directCost => $composableBuilder(
     column: $table.directCost,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<double> get stockQuantity => $composableBuilder(
+    column: $table.stockQuantity,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get trackStock => $composableBuilder(
+    column: $table.trackStock,
     builder: (column) => column,
   );
 
@@ -7538,6 +7756,8 @@ class $$ProductsTableTableManager
                 Value<String> productType = const Value.absent(),
                 Value<double> salePrice = const Value.absent(),
                 Value<double> directCost = const Value.absent(),
+                Value<double?> stockQuantity = const Value.absent(),
+                Value<bool> trackStock = const Value.absent(),
                 Value<int> displayOrder = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -7551,6 +7771,8 @@ class $$ProductsTableTableManager
                 productType: productType,
                 salePrice: salePrice,
                 directCost: directCost,
+                stockQuantity: stockQuantity,
+                trackStock: trackStock,
                 displayOrder: displayOrder,
                 isActive: isActive,
                 createdAt: createdAt,
@@ -7566,6 +7788,8 @@ class $$ProductsTableTableManager
                 required String productType,
                 required double salePrice,
                 Value<double> directCost = const Value.absent(),
+                Value<double?> stockQuantity = const Value.absent(),
+                Value<bool> trackStock = const Value.absent(),
                 Value<int> displayOrder = const Value.absent(),
                 Value<bool> isActive = const Value.absent(),
                 required DateTime createdAt,
@@ -7579,6 +7803,8 @@ class $$ProductsTableTableManager
                 productType: productType,
                 salePrice: salePrice,
                 directCost: directCost,
+                stockQuantity: stockQuantity,
+                trackStock: trackStock,
                 displayOrder: displayOrder,
                 isActive: isActive,
                 createdAt: createdAt,

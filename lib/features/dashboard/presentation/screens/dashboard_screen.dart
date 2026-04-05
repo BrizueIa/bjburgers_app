@@ -133,6 +133,14 @@ class DashboardScreen extends ConsumerWidget {
                               ? 'Caja abierta'
                               : 'Caja cerrada',
                         ),
+                        if (snapshot.stockTrackingEnabled)
+                          _StatusPill(
+                            label: 'Stock bajo: ${snapshot.lowStockCount}',
+                          ),
+                        if (snapshot.stockTrackingEnabled)
+                          _StatusPill(
+                            label: 'Sin stock: ${snapshot.outOfStockCount}',
+                          ),
                       ],
                     ),
                   ],

@@ -44,6 +44,12 @@ class _PosScreenState extends ConsumerState<PosScreen> {
               setState(() => _paymentMethod = value);
             },
             onPaidChanged: () => setState(() {}),
+            onCheckoutComplete: () {
+              setState(() {
+                _selectedOrderId = null;
+                _paymentMethod = 'cash';
+              });
+            },
           );
 
           final queue = _ReadyOrdersList(
@@ -151,6 +157,7 @@ class _CheckoutPanel extends ConsumerWidget {
     required this.currency,
     required this.onPaymentMethodChanged,
     required this.onPaidChanged,
+    required this.onCheckoutComplete,
   });
 
   final String? selectedOrderId;
@@ -159,6 +166,7 @@ class _CheckoutPanel extends ConsumerWidget {
   final NumberFormat currency;
   final ValueChanged<String> onPaymentMethodChanged;
   final VoidCallback onPaidChanged;
+  final VoidCallback onCheckoutComplete;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -170,7 +178,16 @@ class _CheckoutPanel extends ConsumerWidget {
 
     final readyOrders =
         ref.watch(readyOrdersProvider).valueOrNull ?? const <OrderSummary>[];
-    final order = readyOrders.firstWhere((item) => item.id == selectedOrderId);
+    final order = readyOrders
+        .where((item) => item.id == selectedOrderId)
+        .firstOrNull;
+    if (order == null) {
+      return const Center(
+        child: Text(
+          'La comanda seleccionada ya no esta disponible para cobro.',
+        ),
+      );
+    }
     final itemsAsync = ref.watch(posOrderItemsProvider(selectedOrderId!));
 
     return itemsAsync.when(
@@ -264,6 +281,7 @@ class _CheckoutPanel extends ConsumerWidget {
                                   );
                               if (!context.mounted) return;
                               paidController.clear();
+                              onCheckoutComplete();
                               ScaffoldMessenger.of(context).showSnackBar(
                                 const SnackBar(
                                   content: Text('Venta registrada.'),
