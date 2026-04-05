@@ -160,6 +160,13 @@ class _IngredientsTab extends ConsumerWidget {
                       return;
                     }
 
+                    if (value == 'archive') {
+                      await ref
+                          .read(inventoryRepositoryProvider)
+                          .archiveIngredient(ingredient);
+                      return;
+                    }
+
                     await ref
                         .read(inventoryRepositoryProvider)
                         .toggleIngredientActive(ingredient);
@@ -171,6 +178,10 @@ class _IngredientsTab extends ConsumerWidget {
                       child: Text(
                         ingredient.isActive ? 'Desactivar' : 'Activar',
                       ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'archive',
+                      child: Text('Archivar'),
                     ),
                   ],
                 ),
@@ -266,6 +277,13 @@ class _ProductsTab extends ConsumerWidget {
                       return;
                     }
 
+                    if (value == 'archive') {
+                      await ref
+                          .read(inventoryRepositoryProvider)
+                          .archiveProduct(product);
+                      return;
+                    }
+
                     await ref
                         .read(inventoryRepositoryProvider)
                         .toggleProductActive(product);
@@ -275,6 +293,10 @@ class _ProductsTab extends ConsumerWidget {
                     PopupMenuItem(
                       value: 'toggle',
                       child: Text(product.isActive ? 'Desactivar' : 'Activar'),
+                    ),
+                    const PopupMenuItem(
+                      value: 'archive',
+                      child: Text('Archivar'),
                     ),
                   ],
                 ),

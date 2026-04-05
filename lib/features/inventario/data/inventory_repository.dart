@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/app_database_provider.dart';
+import '../../../core/sync/sync_queue_service.dart';
 
 class RecipeDraftItem {
   const RecipeDraftItem({
@@ -51,13 +52,15 @@ class RecipeLineSummary {
 }
 
 class InventoryRepository {
-  InventoryRepository(this._database);
+  InventoryRepository(this._database, this._syncQueueService);
 
   final AppDatabase _database;
+  final SyncQueueService _syncQueueService;
   final Uuid _uuid = const Uuid();
 
   Stream<List<Ingredient>> watchIngredients() {
     final query = _database.select(_database.ingredients)
+      ..where((table) => table.deletedAt.isNull())
       ..orderBy([(table) => OrderingTerm.asc(table.name)]);
     return query.watch();
   }
@@ -80,6 +83,7 @@ class InventoryRepository {
       FROM products p
       LEFT JOIN product_recipe_items r ON r.product_id = p.id
       LEFT JOIN ingredients i ON i.id = r.ingredient_id
+      WHERE p.deleted_at IS NULL
       GROUP BY p.id
       ORDER BY p.display_order ASC, p.name ASC
     ''';
@@ -160,19 +164,35 @@ class InventoryRepository {
     required bool isActive,
   }) async {
     final now = DateTime.now();
+    final ingredientId = id ?? _uuid.v4();
     await _database
         .into(_database.ingredients)
         .insertOnConflictUpdate(
           IngredientsCompanion(
-            id: Value(id ?? _uuid.v4()),
+            id: Value(ingredientId),
             name: Value(name),
             unitName: Value(unitName),
             currentUnitCost: Value(currentUnitCost),
             isActive: Value(isActive),
             createdAt: Value(now),
             updatedAt: Value(now),
+            deletedAt: const Value(null),
           ),
         );
+    await _syncQueueService.enqueue(
+      entityType: 'ingredients',
+      entityId: ingredientId,
+      operationType: 'upsert',
+      payload: {
+        'id': ingredientId,
+        'name': name,
+        'unit_name': unitName,
+        'current_unit_cost': currentUnitCost,
+        'is_active': isActive,
+        'created_at': now.toUtc().toIso8601String(),
+        'updated_at': now.toUtc().toIso8601String(),
+      },
+    );
   }
 
   Future<void> saveProduct({
@@ -204,6 +224,7 @@ class InventoryRepository {
               isActive: Value(isActive),
               createdAt: Value(now),
               updatedAt: Value(now),
+              deletedAt: const Value(null),
             ),
           );
 
@@ -227,31 +248,142 @@ class InventoryRepository {
         }
       }
     });
+
+    await _syncQueueService.enqueue(
+      entityType: 'products',
+      entityId: productId,
+      operationType: 'upsert',
+      payload: {
+        'id': productId,
+        'name': name,
+        'category_name': categoryName?.isEmpty ?? true ? null : categoryName,
+        'product_type': productType,
+        'sale_price': salePrice,
+        'direct_cost': directCost,
+        'display_order': 0,
+        'is_active': isActive,
+        'created_at': now.toUtc().toIso8601String(),
+        'updated_at': now.toUtc().toIso8601String(),
+      },
+    );
   }
 
   Future<void> toggleIngredientActive(Ingredient ingredient) async {
+    final now = DateTime.now();
     await (_database.update(
       _database.ingredients,
     )..where((t) => t.id.equals(ingredient.id))).write(
       IngredientsCompanion(
         isActive: Value(!ingredient.isActive),
-        updatedAt: Value(DateTime.now()),
+        updatedAt: Value(now),
       ),
+    );
+    await _syncQueueService.enqueue(
+      entityType: 'ingredients',
+      entityId: ingredient.id,
+      operationType: 'upsert',
+      payload: {
+        'id': ingredient.id,
+        'name': ingredient.name,
+        'unit_name': ingredient.unitName,
+        'current_unit_cost': ingredient.currentUnitCost,
+        'is_active': !ingredient.isActive,
+        'created_at': ingredient.createdAt.toUtc().toIso8601String(),
+        'updated_at': now.toUtc().toIso8601String(),
+      },
     );
   }
 
   Future<void> toggleProductActive(ProductSummary product) async {
+    final now = DateTime.now();
     await (_database.update(
       _database.products,
     )..where((t) => t.id.equals(product.id))).write(
       ProductsCompanion(
         isActive: Value(!product.isActive),
-        updatedAt: Value(DateTime.now()),
+        updatedAt: Value(now),
       ),
+    );
+    await _syncQueueService.enqueue(
+      entityType: 'products',
+      entityId: product.id,
+      operationType: 'upsert',
+      payload: {
+        'id': product.id,
+        'name': product.name,
+        'category_name': product.categoryName,
+        'product_type': product.productType,
+        'sale_price': product.salePrice,
+        'direct_cost': product.directCost,
+        'display_order': 0,
+        'is_active': !product.isActive,
+        'updated_at': now.toUtc().toIso8601String(),
+      },
+    );
+  }
+
+  Future<void> archiveIngredient(Ingredient ingredient) async {
+    final now = DateTime.now();
+    await (_database.update(
+      _database.ingredients,
+    )..where((t) => t.id.equals(ingredient.id))).write(
+      IngredientsCompanion(
+        isActive: const Value(false),
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+      ),
+    );
+    await _syncQueueService.enqueue(
+      entityType: 'ingredients',
+      entityId: ingredient.id,
+      operationType: 'delete',
+      payload: {
+        'id': ingredient.id,
+        'name': ingredient.name,
+        'unit_name': ingredient.unitName,
+        'current_unit_cost': ingredient.currentUnitCost,
+        'is_active': false,
+        'created_at': ingredient.createdAt.toUtc().toIso8601String(),
+        'updated_at': now.toUtc().toIso8601String(),
+        'deleted_at': now.toUtc().toIso8601String(),
+      },
+    );
+  }
+
+  Future<void> archiveProduct(ProductSummary product) async {
+    final now = DateTime.now();
+    await (_database.update(
+      _database.products,
+    )..where((t) => t.id.equals(product.id))).write(
+      ProductsCompanion(
+        isActive: const Value(false),
+        deletedAt: Value(now),
+        updatedAt: Value(now),
+      ),
+    );
+    await _syncQueueService.enqueue(
+      entityType: 'products',
+      entityId: product.id,
+      operationType: 'delete',
+      payload: {
+        'id': product.id,
+        'name': product.name,
+        'category_name': product.categoryName,
+        'product_type': product.productType,
+        'sale_price': product.salePrice,
+        'direct_cost': product.directCost,
+        'display_order': 0,
+        'is_active': false,
+        'updated_at': now.toUtc().toIso8601String(),
+        'deleted_at': now.toUtc().toIso8601String(),
+      },
     );
   }
 }
 
 final inventoryRepositoryProvider = Provider<InventoryRepository>((ref) {
-  return InventoryRepository(ref.watch(appDatabaseProvider));
+  return InventoryRepository(
+    ref.watch(appDatabaseProvider),
+    ref.watch(syncQueueServiceProvider),
+  );
 });

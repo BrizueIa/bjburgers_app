@@ -22,29 +22,31 @@ El plan detallado vive en `docs/implementation_plan.md`.
 
 La app puede arrancar sin Supabase. Como el repo es publico, no guardes la URL ni la anon key directo en codigo o en archivos versionados.
 
-1. Crea tu archivo local copiando `env/app_config.example.json` a `env/app_config.json`
+1. Crea tu archivo local copiando `.env.example` a `.env`
 2. Rellena ahi tus valores reales de Supabase
-3. Ejecuta la app con `--dart-define-from-file`
+3. Ejecuta la app normalmente desde terminal o desde la extension de Flutter en VS Code
 
 Ejemplo:
 
 ```bash
-cp env/app_config.example.json env/app_config.json
+cp .env.example .env
 ```
 
 ```bash
-flutter run --dart-define-from-file=env/app_config.json
+flutter run
 ```
 
 Para builds:
 
 ```bash
-flutter build apk --dart-define-from-file=env/app_config.json
-flutter build linux --dart-define-from-file=env/app_config.json
-flutter build windows --dart-define-from-file=env/app_config.json
+flutter build apk
+flutter build linux
+flutter build windows
 ```
 
-`env/app_config.json` esta ignorado por Git.
+`.env` esta ignorado por Git.
+
+La app mantiene compatibilidad con `--dart-define` como fallback, pero ahora prioriza `.env`.
 
 Para trabajar el esquema remoto con CLI:
 
@@ -52,6 +54,8 @@ Para trabajar el esquema remoto con CLI:
 supabase link --project-ref valahdxrscbcxuehyaxq
 supabase db push
 ```
+
+Si aparece un error de `row-level security policy` al sincronizar, vuelve a correr `supabase db push` para aplicar la migracion de acceso actual.
 
 Las migraciones viven en `supabase/migrations/`.
 

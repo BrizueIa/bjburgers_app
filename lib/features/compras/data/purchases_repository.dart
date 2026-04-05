@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/app_database_provider.dart';
+import '../../../core/sync/sync_queue_service.dart';
 
 class PurchaseSummary {
   const PurchaseSummary({required this.purchase, required this.ingredientName});
@@ -13,9 +14,10 @@ class PurchaseSummary {
 }
 
 class PurchasesRepository {
-  PurchasesRepository(this._database);
+  PurchasesRepository(this._database, this._syncQueueService);
 
   final AppDatabase _database;
+  final SyncQueueService _syncQueueService;
   final Uuid _uuid = const Uuid();
 
   Stream<List<PurchaseSummary>> watchPurchases() {
@@ -48,13 +50,14 @@ class PurchasesRepository {
   }) async {
     final now = DateTime.now();
     final unitCost = totalCost / quantity;
+    final purchaseId = _uuid.v4();
 
     await _database.transaction(() async {
       await _database
           .into(_database.ingredientPurchases)
           .insert(
             IngredientPurchasesCompanion.insert(
-              id: _uuid.v4(),
+              id: purchaseId,
               ingredientId: ingredientId,
               purchasedQuantity: quantity,
               totalCost: totalCost,
@@ -74,9 +77,29 @@ class PurchasesRepository {
         ),
       );
     });
+
+    await _syncQueueService.enqueue(
+      entityType: 'ingredient_purchases',
+      entityId: purchaseId,
+      operationType: 'upsert',
+      payload: {
+        'id': purchaseId,
+        'ingredient_id': ingredientId,
+        'purchased_quantity': quantity,
+        'total_cost': totalCost,
+        'unit_cost': unitCost,
+        'note': note?.isEmpty ?? true ? null : note,
+        'purchased_at': now.toUtc().toIso8601String(),
+        'created_at': now.toUtc().toIso8601String(),
+        'updated_at': now.toUtc().toIso8601String(),
+      },
+    );
   }
 }
 
 final purchasesRepositoryProvider = Provider<PurchasesRepository>((ref) {
-  return PurchasesRepository(ref.watch(appDatabaseProvider));
+  return PurchasesRepository(
+    ref.watch(appDatabaseProvider),
+    ref.watch(syncQueueServiceProvider),
+  );
 });

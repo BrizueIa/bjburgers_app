@@ -117,7 +117,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     Chip(
                       avatar: const Icon(Icons.pin_rounded, size: 18),
-                      label: Text('PIN global: ${admin.pin}'),
+                      label: Text(
+                        'PIN global configurado (${_maskPin(admin.pin)})',
+                      ),
                     ),
                   ],
                 ),
@@ -125,6 +127,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 TextField(
                   controller: _pinController,
                   keyboardType: TextInputType.number,
+                  obscureText: true,
                   decoration: const InputDecoration(
                     labelText: 'Nuevo PIN global',
                   ),
@@ -155,6 +158,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 TextField(
                   controller: _unlockController,
                   keyboardType: TextInputType.number,
+                  obscureText: true,
                   decoration: const InputDecoration(
                     labelText: 'PIN para activar admin',
                   ),
@@ -251,6 +255,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
   }
+}
+
+String _maskPin(String pin) {
+  if (pin.isEmpty) return '****';
+  return List.filled(pin.length, '*').join();
 }
 
 class _SectionCard extends StatelessWidget {

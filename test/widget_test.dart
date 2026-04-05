@@ -23,7 +23,7 @@ void main() {
         child: const BjBurguersApp(),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(seconds: 1));
 
     expect(find.text('BJ Burguers'), findsOneWidget);
     expect(find.text('Dashboard'), findsOneWidget);
