@@ -28,6 +28,15 @@ flutter run \
   --dart-define=SUPABASE_ANON_KEY=tu_anon_key
 ```
 
+Para trabajar el esquema remoto con CLI:
+
+```bash
+supabase link --project-ref valahdxrscbcxuehyaxq
+supabase db push
+```
+
+Las migraciones viven en `supabase/migrations/`.
+
 ## Comandos utiles
 
 ```bash

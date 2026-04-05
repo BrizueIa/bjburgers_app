@@ -4,8 +4,8 @@ Este documento se actualiza durante el desarrollo para consultar el avance real 
 
 ## Estado general
 
-- Fase actual: `Fase 2 en marcha con base funcional de inventario y compras`
-- Estado del proyecto: `ya existe persistencia local real y CRUD inicial para costos`
+- Fase actual: `Fase 2 estable + base remota inicial en preparacion`
+- Estado del proyecto: `ya existe persistencia local real y primer esquema Supabase versionado`
 - Ultima actualizacion: `2026-04-05`
 
 ## Resumen de avance
@@ -25,15 +25,18 @@ Este documento se actualiza durante el desarrollo para consultar el avance real 
 - CRUD inicial funcional de ingredientes y productos implementado
 - Registro de compras funcional con actualizacion automatica de costo unitario implementado
 - Calculo visual de costo y margen para productos implementado
+- Proyecto Supabase inicializado en el repo
+- Primera migracion SQL creada para el esquema remoto base
 - README actualizado
 - Analisis y tests base pasando
 
 ### En progreso
 - Flujo de trabajo por ramas y merges en GitHub
+- Enlace autenticado del CLI a Supabase pendiente de permisos locales
 
 ### Pendiente inmediato
-- Proyecto Supabase real
-- Tablas remotas y estrategia de sincronizacion real
+- Ejecutar `supabase db push` cuando el CLI tenga permisos sobre el proyecto
+- Definir estrategia de sincronizacion real
 - Profundizar Fase 2 con validaciones, eliminaciones seguras y edicion avanzada de recetas
 
 ## Backlog por fases
@@ -108,8 +111,9 @@ Este documento se actualiza durante el desarrollo para consultar el avance real 
 
 ## Fase 6 - Sync real y despliegue
 
-- [ ] Crear proyecto Supabase
-- [ ] Definir tablas remotas
+- [x] Crear proyecto Supabase
+- [x] Definir primera migracion de tablas remotas
+- [ ] Aplicar migraciones remotas con `supabase db push`
 - [ ] Implementar cola real de sincronizacion
 - [ ] Resolver conflictos simples
 - [ ] Pruebas entre movil y laptop
