@@ -29,6 +29,7 @@ Este documento se actualiza durante el desarrollo para consultar el avance real 
 - Primera migracion SQL creada para el esquema remoto base
 - Servicio inicial de sincronizacion app <-> Supabase implementado
 - Sincronizacion manual real desde settings para configuracion, ingredientes, productos, recetas y compras implementada
+- Plantilla local de secretos creada para `SUPABASE_URL` y `SUPABASE_ANON_KEY`
 - README actualizado
 - Analisis y tests base pasando
 

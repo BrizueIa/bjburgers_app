@@ -20,13 +20,31 @@ El plan detallado vive en `docs/implementation_plan.md`.
 
 ## Configuracion de Supabase
 
-La app puede arrancar sin Supabase. Cuando tengas tu proyecto creado, ejecuta con:
+La app puede arrancar sin Supabase. Como el repo es publico, no guardes la URL ni la anon key directo en codigo o en archivos versionados.
+
+1. Crea tu archivo local copiando `env/app_config.example.json` a `env/app_config.json`
+2. Rellena ahi tus valores reales de Supabase
+3. Ejecuta la app con `--dart-define-from-file`
+
+Ejemplo:
 
 ```bash
-flutter run \
-  --dart-define=SUPABASE_URL=tu_url \
-  --dart-define=SUPABASE_ANON_KEY=tu_anon_key
+cp env/app_config.example.json env/app_config.json
 ```
+
+```bash
+flutter run --dart-define-from-file=env/app_config.json
+```
+
+Para builds:
+
+```bash
+flutter build apk --dart-define-from-file=env/app_config.json
+flutter build linux --dart-define-from-file=env/app_config.json
+flutter build windows --dart-define-from-file=env/app_config.json
+```
+
+`env/app_config.json` esta ignorado por Git.
 
 Para trabajar el esquema remoto con CLI:
 
