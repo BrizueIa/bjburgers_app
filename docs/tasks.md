@@ -4,8 +4,8 @@ Este documento se actualiza durante el desarrollo para consultar el avance real 
 
 ## Estado general
 
-- Fase actual: `Fase 1 completada`
-- Estado del proyecto: `base funcional lista para seguir construyendo`
+- Fase actual: `Fase 2 en marcha con base funcional de inventario y compras`
+- Estado del proyecto: `ya existe persistencia local real y CRUD inicial para costos`
 - Ultima actualizacion: `2026-04-05`
 
 ## Resumen de avance
@@ -20,17 +20,21 @@ Este documento se actualiza durante el desarrollo para consultar el avance real 
 - Bootstrap inicial para Supabase por `dart-define`
 - Estado base de conectividad y sincronizacion simulado
 - Pantallas placeholder para todos los modulos creadas
+- Base local con `drift` implementada
+- Esquema local inicial para ingredientes, compras, productos y recetas creado
+- CRUD inicial funcional de ingredientes y productos implementado
+- Registro de compras funcional con actualizacion automatica de costo unitario implementado
+- Calculo visual de costo y margen para productos implementado
 - README actualizado
 - Analisis y tests base pasando
 
 ### En progreso
-- Preparacion de repositorio Git y publicacion inicial en GitHub
+- Flujo de trabajo por ramas y merges en GitHub
 
 ### Pendiente inmediato
-- Fase 2: inventario y compras
-- Esquema real de base local con `drift`
 - Proyecto Supabase real
 - Tablas remotas y estrategia de sincronizacion real
+- Profundizar Fase 2 con validaciones, eliminaciones seguras y edicion avanzada de recetas
 
 ## Backlog por fases
 
@@ -48,23 +52,27 @@ Este documento se actualiza durante el desarrollo para consultar el avance real 
 - [x] Preparar bootstrap base para Supabase
 - [x] Preparar estado base de sincronizacion
 - [x] Actualizar README y tests
+- [x] Publicar base inicial en GitHub
 
 ### Pendientes de cierre fino
 - [ ] Conectar Supabase real cuando exista el proyecto
-- [ ] Definir base local real con `drift`
+- [x] Definir base local real con `drift`
 
 ## Fase 2 - Inventario y Compras
 
-- [ ] Definir tablas `ingredients`, `ingredient_purchases`, `products`, `product_recipe_items`
-- [ ] Implementar base de datos local con `drift`
-- [ ] CRUD de ingredientes
-- [ ] CRUD de productos simples
-- [ ] CRUD de productos compuestos
-- [ ] Editor de receta por ingrediente
-- [ ] Registro de compras
-- [ ] Calculo de costo unitario por ultima compra
-- [ ] Calculo de costo de producto
-- [ ] Calculo de margen estimado
+- [x] Definir tablas `ingredients`, `ingredient_purchases`, `products`, `product_recipe_items`
+- [x] Implementar base de datos local con `drift`
+- [x] CRUD de ingredientes
+- [x] CRUD de productos simples
+- [x] CRUD de productos compuestos
+- [x] Editor inicial de receta por ingrediente
+- [x] Registro de compras
+- [x] Calculo de costo unitario por ultima compra
+- [x] Calculo de costo de producto
+- [x] Calculo de margen estimado
+- [ ] Mejorar validaciones y estados vacios del flujo de inventario
+- [ ] Agregar eliminacion segura o archivado mas completo
+- [ ] Preparar inventario para sincronizacion remota
 
 ## Fase 3 - Comandas y POS
 
@@ -118,4 +126,4 @@ Este documento se actualiza durante el desarrollo para consultar el avance real 
 
 ## Proxima tarea recomendada
 
-Empezar `Fase 2` construyendo el esquema `drift` y el modulo de `inventario/compras`, porque de ahi dependen costos, margenes, POS y reportes.
+Empezar `Fase 3` con `comandas` y `POS`, usando el inventario y los costos actuales como base para tomar pedidos, cobrar y afectar caja.
