@@ -4,6 +4,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_environment.dart';
+import 'app_sync_service.dart';
 
 class SyncStatusState {
   const SyncStatusState({
@@ -34,7 +35,7 @@ class SyncStatusState {
 }
 
 class SyncStatusController extends StateNotifier<SyncStatusState> {
-  SyncStatusController()
+  SyncStatusController(this._ref)
     : super(
         SyncStatusState(
           isConfigured: AppEnvironment.hasSupabaseConfig,
@@ -48,6 +49,7 @@ class SyncStatusController extends StateNotifier<SyncStatusState> {
     _bootstrap();
   }
 
+  final Ref _ref;
   StreamSubscription<List<ConnectivityResult>>? _subscription;
 
   Future<void> _bootstrap() async {
@@ -70,16 +72,21 @@ class SyncStatusController extends StateNotifier<SyncStatusState> {
     state = state.copyWith(isOnline: online, statusLabel: label);
   }
 
-  Future<void> simulateSync() async {
+  Future<String> synchronize() async {
+    if (!state.isConfigured) {
+      state = state.copyWith(statusLabel: 'Falta configurar Supabase');
+      return state.statusLabel;
+    }
+
+    if (!state.isOnline) {
+      state = state.copyWith(statusLabel: 'Sin conexion, modo offline');
+      return state.statusLabel;
+    }
+
     state = state.copyWith(statusLabel: 'Sincronizando...', pendingItems: 0);
-    await Future<void>.delayed(const Duration(milliseconds: 600));
-    state = state.copyWith(
-      statusLabel: state.isConfigured
-          ? (state.isOnline
-                ? 'Sincronizacion base lista'
-                : 'Sin conexion, modo offline')
-          : 'Falta configurar Supabase',
-    );
+    final result = await _ref.read(appSyncServiceProvider).synchronizeAll();
+    state = state.copyWith(statusLabel: result.message);
+    return result.message;
   }
 
   @override
@@ -91,5 +98,5 @@ class SyncStatusController extends StateNotifier<SyncStatusState> {
 
 final syncStatusProvider =
     StateNotifierProvider<SyncStatusController, SyncStatusState>((ref) {
-      return SyncStatusController();
+      return SyncStatusController(ref);
     });
