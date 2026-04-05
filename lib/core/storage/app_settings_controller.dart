@@ -1,8 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:intl/intl.dart';
 
 import '../config/app_environment.dart';
-import '../storage/shared_preferences_provider.dart';
+import 'local_settings_store.dart';
 
 class AppSettingsState {
   const AppSettingsState({
@@ -31,40 +30,36 @@ class AppSettingsState {
 }
 
 class AppSettingsController extends StateNotifier<AppSettingsState> {
-  AppSettingsController(this._ref)
-    : super(
-        AppSettingsState(
-          businessName:
-              _ref.read(sharedPreferencesProvider).getString(_nameKey) ??
-              'BJ Burguers',
-          digitalMenuUrl:
-              _ref.read(sharedPreferencesProvider).getString(_menuKey) ?? '',
-          lastSyncLabel:
-              _ref.read(sharedPreferencesProvider).getString(_lastSyncKey) ??
-              'Pendiente de primera sincronizacion',
-        ),
-      );
-
-  static const _nameKey = 'business_name';
-  static const _menuKey = 'digital_menu_url';
-  static const _lastSyncKey = 'last_sync_label';
+  AppSettingsController(this._ref) : super(_buildState(_ref));
 
   final Ref _ref;
 
+  static AppSettingsState _buildState(Ref ref) {
+    final snapshot = ref.read(localSettingsStoreProvider).read();
+    return AppSettingsState(
+      businessName: snapshot.businessName,
+      digitalMenuUrl: snapshot.digitalMenuUrl,
+      lastSyncLabel: snapshot.lastSyncLabel,
+    );
+  }
+
   Future<void> updateBusinessName(String value) async {
     state = state.copyWith(businessName: value);
-    await _ref.read(sharedPreferencesProvider).setString(_nameKey, value);
+    await _ref.read(localSettingsStoreProvider).saveBusinessName(value);
   }
 
   Future<void> updateDigitalMenuUrl(String value) async {
     state = state.copyWith(digitalMenuUrl: value);
-    await _ref.read(sharedPreferencesProvider).setString(_menuKey, value);
+    await _ref.read(localSettingsStoreProvider).saveDigitalMenuUrl(value);
   }
 
   Future<void> recordSyncAttempt() async {
-    final label = DateFormat('dd/MM/yyyy HH:mm').format(DateTime.now());
-    state = state.copyWith(lastSyncLabel: label);
-    await _ref.read(sharedPreferencesProvider).setString(_lastSyncKey, label);
+    await _ref.read(localSettingsStoreProvider).setLastSyncNow();
+    reload();
+  }
+
+  void reload() {
+    state = _buildState(_ref);
   }
 }
 

@@ -27,6 +27,8 @@ Este documento se actualiza durante el desarrollo para consultar el avance real 
 - Calculo visual de costo y margen para productos implementado
 - Proyecto Supabase inicializado en el repo
 - Primera migracion SQL creada para el esquema remoto base
+- Servicio inicial de sincronizacion app <-> Supabase implementado
+- Sincronizacion manual real desde settings para configuracion, ingredientes, productos, recetas y compras implementada
 - README actualizado
 - Analisis y tests base pasando
 
@@ -35,9 +37,9 @@ Este documento se actualiza durante el desarrollo para consultar el avance real 
 - Enlace autenticado del CLI a Supabase pendiente de permisos locales
 
 ### Pendiente inmediato
-- Ejecutar `supabase db push` cuando el CLI tenga permisos sobre el proyecto
-- Definir estrategia de sincronizacion real
+- Profundizar estrategia de sincronizacion real por colas y conflictos
 - Profundizar Fase 2 con validaciones, eliminaciones seguras y edicion avanzada de recetas
+- Extender sync a comandas, POS, ventas y caja
 
 ## Backlog por fases
 
@@ -76,6 +78,7 @@ Este documento se actualiza durante el desarrollo para consultar el avance real 
 - [ ] Mejorar validaciones y estados vacios del flujo de inventario
 - [ ] Agregar eliminacion segura o archivado mas completo
 - [ ] Preparar inventario para sincronizacion remota
+- [x] Preparar sincronizacion remota manual inicial de inventario/compras
 
 ## Fase 3 - Comandas y POS
 
@@ -113,7 +116,8 @@ Este documento se actualiza durante el desarrollo para consultar el avance real 
 
 - [x] Crear proyecto Supabase
 - [x] Definir primera migracion de tablas remotas
-- [ ] Aplicar migraciones remotas con `supabase db push`
+- [x] Aplicar migraciones remotas con `supabase db push`
+- [x] Implementar sincronizacion manual inicial desde la app
 - [ ] Implementar cola real de sincronizacion
 - [ ] Resolver conflictos simples
 - [ ] Pruebas entre movil y laptop

@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../storage/shared_preferences_provider.dart';
+import '../storage/local_settings_store.dart';
 
 class AdminModeState {
   const AdminModeState({required this.pin, required this.enabled});
@@ -19,25 +19,21 @@ class AdminModeState {
 }
 
 class AdminModeController extends StateNotifier<AdminModeState> {
-  AdminModeController(this._ref)
-    : super(
-        AdminModeState(
-          pin:
-              _ref.read(sharedPreferencesProvider).getString(_pinKey) ?? '1234',
-          enabled:
-              _ref.read(sharedPreferencesProvider).getBool(_enabledKey) ??
-              false,
-        ),
-      );
-
-  static const _pinKey = 'admin_pin';
-  static const _enabledKey = 'admin_mode_enabled';
+  AdminModeController(this._ref) : super(_buildState(_ref));
 
   final Ref _ref;
 
+  static AdminModeState _buildState(Ref ref) {
+    final snapshot = ref.read(localSettingsStoreProvider).read();
+    return AdminModeState(
+      pin: snapshot.adminPin,
+      enabled: snapshot.adminModeEnabled,
+    );
+  }
+
   Future<void> updatePin(String pin) async {
     state = state.copyWith(pin: pin);
-    await _ref.read(sharedPreferencesProvider).setString(_pinKey, pin);
+    await _ref.read(localSettingsStoreProvider).saveAdminPin(pin);
   }
 
   Future<bool> enableWithPin(String pin) async {
@@ -46,13 +42,17 @@ class AdminModeController extends StateNotifier<AdminModeState> {
     }
 
     state = state.copyWith(enabled: true);
-    await _ref.read(sharedPreferencesProvider).setBool(_enabledKey, true);
+    await _ref.read(localSettingsStoreProvider).saveAdminModeEnabled(true);
     return true;
   }
 
   Future<void> disable() async {
     state = state.copyWith(enabled: false);
-    await _ref.read(sharedPreferencesProvider).setBool(_enabledKey, false);
+    await _ref.read(localSettingsStoreProvider).saveAdminModeEnabled(false);
+  }
+
+  void reload() {
+    state = _buildState(_ref);
   }
 }
 

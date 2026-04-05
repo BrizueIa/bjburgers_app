@@ -234,12 +234,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     await ref
                         .read(appSettingsProvider.notifier)
                         .recordSyncAttempt();
-                    await ref.read(syncStatusProvider.notifier).simulateSync();
-                    messenger.showSnackBar(
-                      const SnackBar(
-                        content: Text('Sincronizacion base ejecutada.'),
-                      ),
-                    );
+                    final message = await ref
+                        .read(syncStatusProvider.notifier)
+                        .synchronize();
+                    ref.read(appSettingsProvider.notifier).reload();
+                    ref.read(adminModeProvider.notifier).reload();
+                    messenger.showSnackBar(SnackBar(content: Text(message)));
                   },
                   icon: const Icon(Icons.sync_rounded),
                   label: const Text('Forzar sincronizacion'),

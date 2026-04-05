@@ -37,6 +37,14 @@ supabase db push
 
 Las migraciones viven en `supabase/migrations/`.
 
+La pantalla `Settings` ya permite lanzar una sincronizacion manual real entre la app local y Supabase para:
+
+- configuracion del negocio
+- ingredientes
+- productos
+- recetas
+- compras
+
 ## Comandos utiles
 
 ```bash
