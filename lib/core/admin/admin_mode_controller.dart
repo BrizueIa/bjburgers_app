@@ -31,11 +31,6 @@ class AdminModeController extends StateNotifier<AdminModeState> {
     );
   }
 
-  Future<void> updatePin(String pin) async {
-    state = state.copyWith(pin: pin);
-    await _ref.read(localSettingsStoreProvider).saveAdminPin(pin);
-  }
-
   Future<bool> enableWithPin(String pin) async {
     if (!state.verifyPin(pin)) {
       return false;

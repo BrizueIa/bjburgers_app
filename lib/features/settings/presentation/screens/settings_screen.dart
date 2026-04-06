@@ -15,17 +15,14 @@ class SettingsScreen extends ConsumerStatefulWidget {
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final TextEditingController _nameController;
   late final TextEditingController _menuController;
-  late final TextEditingController _pinController;
   late final TextEditingController _unlockController;
 
   @override
   void initState() {
     super.initState();
     final settings = ref.read(appSettingsProvider);
-    final admin = ref.read(adminModeProvider);
     _nameController = TextEditingController(text: settings.businessName);
     _menuController = TextEditingController(text: settings.digitalMenuUrl);
-    _pinController = TextEditingController(text: admin.pin);
     _unlockController = TextEditingController();
   }
 
@@ -33,7 +30,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void dispose() {
     _nameController.dispose();
     _menuController.dispose();
-    _pinController.dispose();
     _unlockController.dispose();
     super.dispose();
   }
@@ -136,42 +132,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                     Chip(
                       avatar: const Icon(Icons.pin_rounded, size: 18),
-                      label: Text(
-                        'PIN global configurado (${_maskPin(admin.pin)})',
-                      ),
+                      label: Text('PIN global activo (${_maskPin(admin.pin)})'),
                     ),
                   ],
                 ),
                 const SizedBox(height: 16),
-                TextField(
-                  controller: _pinController,
-                  keyboardType: TextInputType.number,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Nuevo PIN global',
-                  ),
-                ),
-                const SizedBox(height: 12),
-                FilledButton.tonalIcon(
-                  onPressed: () async {
-                    final messenger = ScaffoldMessenger.of(context);
-                    final pin = _pinController.text.trim();
-                    if (pin.length < 4) {
-                      messenger.showSnackBar(
-                        const SnackBar(
-                          content: Text('Usa un PIN de al menos 4 digitos.'),
-                        ),
-                      );
-                      return;
-                    }
-
-                    await ref.read(adminModeProvider.notifier).updatePin(pin);
-                    messenger.showSnackBar(
-                      const SnackBar(content: Text('PIN actualizado.')),
-                    );
-                  },
-                  icon: const Icon(Icons.key_rounded),
-                  label: const Text('Actualizar PIN'),
+                const Text(
+                  'El PIN es fijo para seguridad operativa y no se puede cambiar desde la app.',
                 ),
                 const SizedBox(height: 16),
                 TextField(
