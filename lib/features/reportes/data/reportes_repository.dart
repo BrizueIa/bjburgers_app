@@ -62,6 +62,25 @@ class ProductReportRow {
   final double estimatedProfit;
 }
 
+class CategoryReportRow {
+  const CategoryReportRow({
+    required this.categoryName,
+    required this.quantity,
+    required this.salesAmount,
+  });
+
+  final String categoryName;
+  final int quantity;
+  final double salesAmount;
+}
+
+class PromoReportRow {
+  const PromoReportRow({required this.promoName, required this.timesUsed});
+
+  final String promoName;
+  final int timesUsed;
+}
+
 class CashReportRow {
   const CashReportRow({
     required this.openedAt,
@@ -92,7 +111,13 @@ class ReportSnapshot {
     required this.estimatedProfit,
     required this.totalOrders,
     required this.totalSalesCount,
+    required this.averageTicket,
+    required this.peakHourLabel,
+    required this.favoriteCategory,
+    required this.favoritePromo,
     required this.topProducts,
+    required this.categoryBreakdown,
+    required this.promos,
     required this.cashSessions,
   });
 
@@ -104,7 +129,13 @@ class ReportSnapshot {
   final double estimatedProfit;
   final int totalOrders;
   final int totalSalesCount;
+  final double averageTicket;
+  final String peakHourLabel;
+  final String? favoriteCategory;
+  final PromoReportRow? favoritePromo;
   final List<ProductReportRow> topProducts;
+  final List<CategoryReportRow> categoryBreakdown;
+  final List<PromoReportRow> promos;
   final List<CashReportRow> cashSessions;
 }
 
@@ -187,6 +218,68 @@ class ReportesRepository {
         )
         .get();
 
+    final categoryRows = await _database
+        .customSelect(
+          '''
+      SELECT
+        COALESCE(p.category_name, 'Sin categoria') AS category_name,
+        SUM(si.quantity) AS total_quantity,
+        SUM(si.line_total) AS total_sales
+      FROM sale_items si
+      LEFT JOIN products p ON p.id = si.product_id
+      WHERE si.created_at >= ? AND si.created_at <= ?
+      GROUP BY COALESCE(p.category_name, 'Sin categoria')
+      ORDER BY total_sales DESC, total_quantity DESC
+      ''',
+          variables: [
+            Variable<DateTime>(range.start),
+            Variable<DateTime>(range.end),
+          ],
+          readsFrom: {_database.saleItems, _database.products},
+        )
+        .get();
+
+    final promoRows = await _database
+        .customSelect(
+          '''
+      SELECT
+        notes AS promo_name,
+        COUNT(*) AS times_used
+      FROM order_items
+      WHERE created_at >= ? AND created_at <= ?
+        AND notes IS NOT NULL
+        AND notes LIKE 'Promo %'
+      GROUP BY notes
+      ORDER BY times_used DESC, promo_name ASC
+      ''',
+          variables: [
+            Variable<DateTime>(range.start),
+            Variable<DateTime>(range.end),
+          ],
+          readsFrom: {_database.orderItems},
+        )
+        .get();
+
+    final peakHourRow = await _database
+        .customSelect(
+          '''
+      SELECT
+        strftime('%H:00', sold_at) AS hour_label,
+        COUNT(*) AS hour_count
+      FROM sales
+      WHERE sold_at >= ? AND sold_at <= ?
+      GROUP BY strftime('%H:00', sold_at)
+      ORDER BY hour_count DESC, hour_label ASC
+      LIMIT 1
+      ''',
+          variables: [
+            Variable<DateTime>(range.start),
+            Variable<DateTime>(range.end),
+          ],
+          readsFrom: {_database.sales},
+        )
+        .getSingleOrNull();
+
     final cashRows = await _database
         .customSelect(
           '''
@@ -219,6 +312,20 @@ class ReportesRepository {
       estimatedProfit: salesRow.read<double>('estimated_profit'),
       totalOrders: ordersRow.read<int>('total_orders'),
       totalSalesCount: salesRow.read<int>('total_sales_count'),
+      averageTicket: salesRow.read<int>('total_sales_count') == 0
+          ? 0
+          : salesRow.read<double>('total_sales') /
+                salesRow.read<int>('total_sales_count'),
+      peakHourLabel: peakHourRow?.read<String>('hour_label') ?? 'Sin datos',
+      favoriteCategory: categoryRows.isEmpty
+          ? null
+          : categoryRows.first.read<String>('category_name'),
+      favoritePromo: promoRows.isEmpty
+          ? null
+          : PromoReportRow(
+              promoName: promoRows.first.read<String>('promo_name'),
+              timesUsed: promoRows.first.read<int>('times_used'),
+            ),
       topProducts: productsRows
           .map(
             (row) => ProductReportRow(
@@ -227,6 +334,23 @@ class ReportesRepository {
               salesAmount: row.read<double>('total_sales'),
               costAmount: row.read<double>('total_cost'),
               estimatedProfit: row.read<double>('estimated_profit'),
+            ),
+          )
+          .toList(),
+      categoryBreakdown: categoryRows
+          .map(
+            (row) => CategoryReportRow(
+              categoryName: row.read<String>('category_name'),
+              quantity: row.read<int>('total_quantity'),
+              salesAmount: row.read<double>('total_sales'),
+            ),
+          )
+          .toList(),
+      promos: promoRows
+          .map(
+            (row) => PromoReportRow(
+              promoName: row.read<String>('promo_name'),
+              timesUsed: row.read<int>('times_used'),
             ),
           )
           .toList(),
