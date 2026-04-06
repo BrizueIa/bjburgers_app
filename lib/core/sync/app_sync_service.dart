@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -53,9 +55,20 @@ class AppSyncService {
       debugPrint('Error durante sincronizacion: $error');
       return SyncSummary(
         success: false,
-        message: 'Error de sincronizacion: $error',
+        message: _buildSyncErrorMessage(error),
       );
     }
+  }
+
+  String _buildSyncErrorMessage(Object error) {
+    final text = error.toString();
+    if (error is SocketException || text.contains('Failed host lookup')) {
+      return 'No se pudo conectar con Supabase. Revisa internet, DNS o la URL del proyecto.';
+    }
+    if (text.contains('Connection refused') || text.contains('timed out')) {
+      return 'La sincronizacion no respondio. Intenta de nuevo cuando tengas una conexion estable.';
+    }
+    return 'Error de sincronizacion: $error';
   }
 
   Future<void> _syncSettings() async {

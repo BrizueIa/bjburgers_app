@@ -8,6 +8,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter/material.dart';
 
 import 'package:bjburguers_app/app/app.dart';
 import 'package:bjburguers_app/core/storage/shared_preferences_provider.dart';
@@ -26,6 +27,6 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
 
     expect(find.text('BJ Burguers'), findsOneWidget);
-    expect(find.text('Dashboard'), findsOneWidget);
+    expect(find.byType(NavigationBar), findsOneWidget);
   });
 }

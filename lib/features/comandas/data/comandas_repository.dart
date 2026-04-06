@@ -17,6 +17,7 @@ class OrderDraftItem {
     required this.baseCost,
     required this.quantity,
     this.notes,
+    this.comboLabel,
     this.removedIngredients = const [],
   });
 
@@ -26,6 +27,7 @@ class OrderDraftItem {
   final double baseCost;
   final int quantity;
   final String? notes;
+  final String? comboLabel;
   final List<String> removedIngredients;
 }
 

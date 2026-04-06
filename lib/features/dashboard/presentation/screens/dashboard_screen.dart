@@ -17,39 +17,67 @@ class DashboardScreen extends ConsumerWidget {
     final sync = ref.watch(syncStatusProvider);
     final snapshotAsync = ref.watch(dashboardSnapshotProvider);
     final currency = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
-    final isWide = MediaQuery.sizeOf(context).width >= 1000;
+    final width = MediaQuery.sizeOf(context).width;
+    final isWide = width >= 1000;
+    final isMobile = width < 700;
 
     return Scaffold(
       appBar: AppBar(
         title: Text(settings.businessName),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 20),
-            child: Wrap(
-              spacing: 8,
-              children: [
-                Chip(
-                  avatar: Icon(
-                    admin.enabled
-                        ? Icons.lock_open_rounded
-                        : Icons.lock_outline_rounded,
-                    size: 18,
+        actions: isMobile
+            ? [
+                Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        admin.enabled
+                            ? Icons.lock_open_rounded
+                            : Icons.lock_outline_rounded,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 10),
+                      Icon(
+                        sync.isOnline
+                            ? Icons.cloud_done_rounded
+                            : Icons.cloud_off_rounded,
+                        size: 18,
+                      ),
+                    ],
                   ),
-                  label: Text(admin.enabled ? 'Admin activo' : 'Admin apagado'),
                 ),
-                Chip(
-                  avatar: Icon(
-                    sync.isOnline
-                        ? Icons.cloud_done_rounded
-                        : Icons.cloud_off_rounded,
-                    size: 18,
+              ]
+            : [
+                Padding(
+                  padding: const EdgeInsets.only(right: 20),
+                  child: Wrap(
+                    spacing: 8,
+                    children: [
+                      Chip(
+                        avatar: Icon(
+                          admin.enabled
+                              ? Icons.lock_open_rounded
+                              : Icons.lock_outline_rounded,
+                          size: 18,
+                        ),
+                        label: Text(
+                          admin.enabled ? 'Admin activo' : 'Admin apagado',
+                        ),
+                      ),
+                      Chip(
+                        avatar: Icon(
+                          sync.isOnline
+                              ? Icons.cloud_done_rounded
+                              : Icons.cloud_off_rounded,
+                          size: 18,
+                        ),
+                        label: Text(sync.statusLabel),
+                      ),
+                    ],
                   ),
-                  label: Text(sync.statusLabel),
                 ),
               ],
-            ),
-          ),
-        ],
       ),
       body: snapshotAsync.when(
         data: (snapshot) {
@@ -58,184 +86,175 @@ class DashboardScreen extends ConsumerWidget {
               title: 'Ventas hoy',
               value: currency.format(snapshot.totalSalesToday),
               icon: Icons.point_of_sale_rounded,
+              compact: isMobile,
             ),
             _MetricCard(
               title: 'Utilidad estimada',
               value: currency.format(snapshot.estimatedProfitToday),
               icon: Icons.trending_up_rounded,
+              compact: isMobile,
             ),
             _MetricCard(
               title: 'Efectivo hoy',
               value: currency.format(snapshot.cashSalesToday),
               icon: Icons.payments_rounded,
+              compact: isMobile,
             ),
             _MetricCard(
               title: 'Transferencias hoy',
               value: currency.format(snapshot.transferSalesToday),
               icon: Icons.account_balance_rounded,
+              compact: isMobile,
             ),
             _MetricCard(
               title: 'Compras hoy',
               value: currency.format(snapshot.purchasesToday),
               icon: Icons.shopping_cart_rounded,
+              compact: isMobile,
             ),
             _MetricCard(
               title: 'Pedidos hoy',
               value: '${snapshot.ordersToday}',
               icon: Icons.receipt_long_rounded,
+              compact: isMobile,
             ),
+            if (isMobile) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: _InfoBadge(
+                      icon: admin.enabled
+                          ? Icons.lock_open_rounded
+                          : Icons.lock_outline_rounded,
+                      label: admin.enabled ? 'Admin activo' : 'Admin apagado',
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: _InfoBadge(
+                      icon: sync.isOnline
+                          ? Icons.cloud_done_rounded
+                          : Icons.cloud_off_rounded,
+                      label: sync.statusLabel,
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ];
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
             children: [
-              Container(
-                padding: const EdgeInsets.all(28),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(28),
-                  gradient: const LinearGradient(
-                    colors: [
-                      Color(0xFF120D08),
-                      Color(0xFF2D1306),
-                      Color(0xFFF28C00),
+              if (isMobile)
+                Column(
+                  children: [
+                    for (final card in cards) ...[
+                      card,
+                      const SizedBox(height: 12),
                     ],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
+                  ],
+                )
+              else
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: cards.length,
+                  gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: isWide ? 3 : 2,
+                    crossAxisSpacing: 16,
+                    mainAxisSpacing: 16,
+                    childAspectRatio: isWide ? 1.7 : 1.55,
                   ),
-                  boxShadow: const [
-                    BoxShadow(
-                      color: Color(0x33120000),
-                      blurRadius: 24,
-                      offset: Offset(0, 16),
+                  itemBuilder: (context, index) => cards[index],
+                ),
+              const SizedBox(height: 20),
+              if (isMobile) ...[
+                _SummaryCard(
+                  title: 'Comandas',
+                  rows: [
+                    _SummaryRow(
+                      label: 'Pendientes / preparando',
+                      value: '${snapshot.pendingOrders}',
+                    ),
+                    _SummaryRow(
+                      label: 'Listas para cobrar',
+                      value: '${snapshot.readyOrders}',
+                    ),
+                    _SummaryRow(
+                      label: 'Totales del dia',
+                      value: '${snapshot.ordersToday}',
                     ),
                   ],
                 ),
-                child: Column(
+                const SizedBox(height: 12),
+                _SummaryCard(
+                  title: 'Caja',
+                  rows: [
+                    _SummaryRow(
+                      label: 'Efectivo esperado',
+                      value: currency.format(snapshot.activeCashExpected),
+                    ),
+                    _SummaryRow(
+                      label: 'Digital acumulado',
+                      value: currency.format(snapshot.activeCashTransfer),
+                    ),
+                    _SummaryRow(
+                      label: 'Estado',
+                      value: snapshot.hasOpenCashSession
+                          ? 'Abierta'
+                          : 'Sin abrir',
+                    ),
+                  ],
+                ),
+              ] else
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 8,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withValues(alpha: 0.12),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: const Text(
-                        'B&J BURGERS · OPERACION',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: 1.2,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 18),
-                    Text(
-                      'Operacion del dia',
-                      style: Theme.of(
-                        context,
-                      ).textTheme.headlineSmall?.copyWith(color: Colors.white),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      snapshot.hasOpenCashSession
-                          ? 'Caja activa con efectivo esperado de ${currency.format(snapshot.activeCashExpected)} y digital acumulado de ${currency.format(snapshot.activeCashTransfer)}.'
-                          : 'No hay caja abierta. Abre una sesion para registrar ingresos y cortes.',
-                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: Colors.white.withValues(alpha: 0.92),
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        _StatusPill(
-                          label: 'Pendientes: ${snapshot.pendingOrders}',
-                        ),
-                        _StatusPill(
-                          label: 'Listas para POS: ${snapshot.readyOrders}',
-                        ),
-                        _StatusPill(
-                          label: snapshot.hasOpenCashSession
-                              ? 'Caja abierta'
-                              : 'Caja cerrada',
-                        ),
-                        if (snapshot.stockTrackingEnabled)
-                          _StatusPill(
-                            label: 'Stock bajo: ${snapshot.lowStockCount}',
+                    Expanded(
+                      child: _SummaryCard(
+                        title: 'Comandas',
+                        rows: [
+                          _SummaryRow(
+                            label: 'Pendientes / preparando',
+                            value: '${snapshot.pendingOrders}',
                           ),
-                        if (snapshot.stockTrackingEnabled)
-                          _StatusPill(
-                            label: 'Sin stock: ${snapshot.outOfStockCount}',
+                          _SummaryRow(
+                            label: 'Listas para cobrar',
+                            value: '${snapshot.readyOrders}',
                           ),
-                      ],
+                          _SummaryRow(
+                            label: 'Totales del dia',
+                            value: '${snapshot.ordersToday}',
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: _SummaryCard(
+                        title: 'Caja',
+                        rows: [
+                          _SummaryRow(
+                            label: 'Efectivo esperado',
+                            value: currency.format(snapshot.activeCashExpected),
+                          ),
+                          _SummaryRow(
+                            label: 'Digital acumulado',
+                            value: currency.format(snapshot.activeCashTransfer),
+                          ),
+                          _SummaryRow(
+                            label: 'Estado',
+                            value: snapshot.hasOpenCashSession
+                                ? 'Abierta'
+                                : 'Sin abrir',
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 20),
-              GridView.builder(
-                shrinkWrap: true,
-                physics: const NeverScrollableScrollPhysics(),
-                itemCount: cards.length,
-                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: isWide ? 3 : 2,
-                  crossAxisSpacing: 16,
-                  mainAxisSpacing: 16,
-                  childAspectRatio: isWide ? 1.7 : 1.4,
-                ),
-                itemBuilder: (context, index) => cards[index],
-              ),
-              const SizedBox(height: 20),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: _SummaryCard(
-                      title: 'Comandas',
-                      rows: [
-                        _SummaryRow(
-                          label: 'Pendientes / preparando',
-                          value: '${snapshot.pendingOrders}',
-                        ),
-                        _SummaryRow(
-                          label: 'Listas para cobrar',
-                          value: '${snapshot.readyOrders}',
-                        ),
-                        _SummaryRow(
-                          label: 'Totales del dia',
-                          value: '${snapshot.ordersToday}',
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: _SummaryCard(
-                      title: 'Caja',
-                      rows: [
-                        _SummaryRow(
-                          label: 'Efectivo esperado',
-                          value: currency.format(snapshot.activeCashExpected),
-                        ),
-                        _SummaryRow(
-                          label: 'Digital acumulado',
-                          value: currency.format(snapshot.activeCashTransfer),
-                        ),
-                        _SummaryRow(
-                          label: 'Estado',
-                          value: snapshot.hasOpenCashSession
-                              ? 'Abierta'
-                              : 'Sin abrir',
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
             ],
           );
         },
@@ -251,39 +270,75 @@ class _MetricCard extends StatelessWidget {
     required this.title,
     required this.value,
     required this.icon,
+    this.compact = false,
   });
 
   final String title;
   final String value;
   final IconData icon;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(22),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Container(
-              width: 46,
-              height: 46,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(16),
-                gradient: const LinearGradient(
-                  colors: [Color(0xFFFFC14D), Color(0xFFF28C00)],
-                ),
+        child: compact
+            ? Row(
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFFC14D), Color(0xFFF28C00)],
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(icon, color: const Color(0xFF1A1208)),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleMedium,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          value,
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Container(
+                    width: 46,
+                    height: 46,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(16),
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFFFFC14D), Color(0xFFF28C00)],
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Icon(icon, color: const Color(0xFF1A1208)),
+                  ),
+                  const SizedBox(height: 14),
+                  Text(title, style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  Text(value, style: Theme.of(context).textTheme.headlineSmall),
+                ],
               ),
-              alignment: Alignment.center,
-              child: Icon(icon, color: const Color(0xFF1A1208)),
-            ),
-            const SizedBox(height: 14),
-            Text(title, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            Text(value, style: Theme.of(context).textTheme.headlineSmall),
-          ],
-        ),
       ),
     );
   }
@@ -334,20 +389,35 @@ class _SummaryRow {
   final String value;
 }
 
-class _StatusPill extends StatelessWidget {
-  const _StatusPill({required this.label});
+class _InfoBadge extends StatelessWidget {
+  const _InfoBadge({required this.icon, required this.label});
 
+  final IconData icon;
   final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(999),
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: const Color(0xFFE2C6A2)),
       ),
-      child: Text(label, style: const TextStyle(color: Colors.white)),
+      child: Row(
+        children: [
+          Icon(icon, size: 16, color: const Color(0xFF7A2E12)),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              label,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

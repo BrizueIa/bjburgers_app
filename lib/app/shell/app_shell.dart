@@ -179,13 +179,89 @@ class _MobileNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    const primaryItems = [
+      AppDestination.dashboard,
+      AppDestination.comandas,
+      AppDestination.pos,
+      AppDestination.caja,
+      null,
+    ];
+
+    final selectedIndex = primaryItems.indexOf(current);
+    final resolvedIndex = selectedIndex < 0 ? 4 : selectedIndex;
+
     return NavigationBar(
-      selectedIndex: current.index,
-      onDestinationSelected: (index) =>
-          context.go(AppDestination.values[index].route),
-      destinations: [
-        for (final item in AppDestination.values)
-          NavigationDestination(icon: Icon(item.icon), label: item.label),
+      selectedIndex: resolvedIndex,
+      onDestinationSelected: (index) {
+        if (index == 4) {
+          showModalBottomSheet<void>(
+            context: context,
+            showDragHandle: true,
+            builder: (context) => SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Mas vistas',
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    for (final item in const [
+                      AppDestination.inventario,
+                      AppDestination.compras,
+                      AppDestination.reportes,
+                      AppDestination.settings,
+                    ])
+                      ListTile(
+                        leading: Icon(item.icon),
+                        title: Text(item.label),
+                        onTap: () {
+                          Navigator.of(context).pop();
+                          context.go(item.route);
+                        },
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+          return;
+        }
+        if (index < primaryItems.length) {
+          final destination = primaryItems[index];
+          if (destination != null) {
+            context.go(destination.route);
+          }
+          return;
+        }
+      },
+      destinations: const [
+        NavigationDestination(
+          icon: Icon(Icons.space_dashboard_rounded),
+          label: 'Inicio',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.receipt_long_rounded),
+          label: 'Comandas',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.point_of_sale_rounded),
+          label: 'POS',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.payments_rounded),
+          label: 'Caja',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.grid_view_rounded),
+          label: 'Mas',
+        ),
       ],
     );
   }

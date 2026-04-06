@@ -22,41 +22,91 @@ final appRouterProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(
             path: AppDestination.dashboard.route,
-            builder: (context, state) => const DashboardScreen(),
+            pageBuilder: (context, state) => _buildRouteTransition(
+              state: state,
+              child: const DashboardScreen(),
+            ),
           ),
           GoRoute(
             path: AppDestination.pos.route,
-            builder: (context, state) => const PosScreen(),
+            pageBuilder: (context, state) =>
+                _buildRouteTransition(state: state, child: const PosScreen()),
           ),
           GoRoute(
             path: AppDestination.comandas.route,
-            builder: (context, state) => const ComandasScreen(),
+            pageBuilder: (context, state) => _buildRouteTransition(
+              state: state,
+              child: const ComandasScreen(),
+            ),
           ),
           GoRoute(
             path: AppDestination.inventario.route,
-            builder: (context, state) => const InventarioScreen(),
+            pageBuilder: (context, state) => _buildRouteTransition(
+              state: state,
+              child: const InventarioScreen(),
+            ),
           ),
           GoRoute(
             path: AppDestination.compras.route,
-            builder: (context, state) => const ComprasScreen(),
+            pageBuilder: (context, state) => _buildRouteTransition(
+              state: state,
+              child: const ComprasScreen(),
+            ),
           ),
           GoRoute(
             path: AppDestination.caja.route,
-            builder: (context, state) => const CajaScreen(),
+            pageBuilder: (context, state) =>
+                _buildRouteTransition(state: state, child: const CajaScreen()),
           ),
           GoRoute(
             path: AppDestination.reportes.route,
-            builder: (context, state) => const ReportesScreen(),
+            pageBuilder: (context, state) => _buildRouteTransition(
+              state: state,
+              child: const ReportesScreen(),
+            ),
           ),
           GoRoute(
             path: AppDestination.settings.route,
-            builder: (context, state) => const SettingsScreen(),
+            pageBuilder: (context, state) => _buildRouteTransition(
+              state: state,
+              child: const SettingsScreen(),
+            ),
           ),
         ],
       ),
     ],
   );
 });
+
+CustomTransitionPage<void> _buildRouteTransition({
+  required GoRouterState state,
+  required Widget child,
+}) {
+  return CustomTransitionPage<void>(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 260),
+    reverseTransitionDuration: const Duration(milliseconds: 220),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: Curves.easeOutCubic,
+        reverseCurve: Curves.easeInCubic,
+      );
+
+      return FadeTransition(
+        opacity: Tween<double>(begin: 0.35, end: 1).animate(curved),
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0.03, 0),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
 
 enum AppDestination {
   dashboard('/dashboard', 'Dashboard', Icons.space_dashboard_rounded),

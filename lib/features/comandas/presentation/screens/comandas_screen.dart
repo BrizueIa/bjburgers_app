@@ -3,8 +3,70 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../core/storage/app_settings_controller.dart';
+import '../../../../core/sync/sync_status_controller.dart';
 import '../../data/comandas_repository.dart';
 import '../controllers/comandas_controller.dart';
+
+class _PromoPreset {
+  const _PromoPreset({
+    required this.title,
+    required this.dayLabel,
+    required this.totalPrice,
+    required this.description,
+    required this.count,
+    this.fixedProductName,
+    this.selectableProductNames = const [],
+  });
+
+  final String title;
+  final String dayLabel;
+  final double totalPrice;
+  final String description;
+  final int count;
+  final String? fixedProductName;
+  final List<String> selectableProductNames;
+
+  bool get needsSelection => selectableProductNames.isNotEmpty;
+}
+
+const _promoPresets = [
+  _PromoPreset(
+    title: 'Promo Jueves',
+    dayLabel: 'Jueves',
+    totalPrice: 100,
+    description: '2 Clasicas por 100',
+    count: 2,
+    fixedProductName: 'Clasica',
+  ),
+  _PromoPreset(
+    title: 'Promo Viernes',
+    dayLabel: 'Viernes',
+    totalPrice: 100,
+    description: '2 hot dogs a eleccion por 100',
+    count: 2,
+    selectableProductNames: [
+      'Hot Dog Clasico',
+      'Salchi-Dog',
+      'Hot Dog Jack Daniels',
+    ],
+  ),
+  _PromoPreset(
+    title: 'Promo Sabado',
+    dayLabel: 'Sabado',
+    totalPrice: 69,
+    description: 'Salchiburger a precio de Clasica',
+    count: 1,
+    fixedProductName: 'Salchiburger',
+  ),
+  _PromoPreset(
+    title: 'Promo Domingo',
+    dayLabel: 'Domingo',
+    totalPrice: 125,
+    description: '2 Hawaianas por 125',
+    count: 2,
+    fixedProductName: 'Hawaiana',
+  ),
+];
 
 class ComandasScreen extends ConsumerStatefulWidget {
   const ComandasScreen({super.key});
@@ -16,6 +78,67 @@ class ComandasScreen extends ConsumerStatefulWidget {
 class _ComandasScreenState extends ConsumerState<ComandasScreen> {
   final List<OrderDraftItem> _draftItems = [];
   final TextEditingController _notesController = TextEditingController();
+
+  Future<void> _addProductDraft(
+    dynamic product, {
+    String? comboLabel,
+    double? overrideUnitPrice,
+  }) async {
+    final removedIngredients = product.productType == 'recipe'
+        ? await _showCustomizationDialog(
+            context,
+            ref,
+            product,
+            comboLabel: comboLabel,
+          )
+        : const <String>[];
+    if (!mounted) return;
+
+    setState(() {
+      _draftItems.add(
+        OrderDraftItem(
+          productId: product.id,
+          productName: product.name,
+          unitPrice: overrideUnitPrice ?? product.salePrice,
+          baseCost: product.calculatedCost,
+          quantity: 1,
+          comboLabel: comboLabel,
+          notes: comboLabel,
+          removedIngredients: removedIngredients,
+        ),
+      );
+    });
+  }
+
+  Future<void> _addPromotion(_PromoPreset promo, List<dynamic> products) async {
+    final selectedProducts = <dynamic>[];
+
+    if (promo.needsSelection) {
+      final result = await _showPromoSelectionDialog(context, promo, products);
+      if (!mounted || result == null || result.length != promo.count) return;
+      selectedProducts.addAll(result);
+    } else {
+      final product = products
+          .where((item) => item.name == promo.fixedProductName)
+          .firstOrNull;
+      if (product == null) return;
+      for (var i = 0; i < promo.count; i++) {
+        selectedProducts.add(product);
+      }
+    }
+
+    final unitPrice = promo.totalPrice / promo.count;
+    for (var i = 0; i < selectedProducts.length; i++) {
+      final itemLabel = selectedProducts.length > 1
+          ? '${promo.title} · ${i + 1}/${selectedProducts.length}'
+          : promo.title;
+      await _addProductDraft(
+        selectedProducts[i],
+        comboLabel: itemLabel,
+        overrideUnitPrice: unitPrice,
+      );
+    }
+  }
 
   @override
   void dispose() {
@@ -34,6 +157,14 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
     final ordersAsync = ref.watch(ordersProvider);
     final settings = ref.watch(appSettingsProvider);
     final currency = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
+
+    Future<void> refreshData() async {
+      ref.invalidate(sellableProductsProvider);
+      ref.invalidate(ordersProvider);
+      await ref.read(syncStatusProvider.notifier).synchronize();
+      ref.invalidate(sellableProductsProvider);
+      ref.invalidate(ordersProvider);
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -70,43 +201,12 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
             notesController: _notesController,
             draftTotal: _draftTotal,
             currency: currency,
+            compact: !isWide,
+            promoPresets: _promoPresets,
             onAddProduct: (product) async {
-              final removedIngredients = product.productType == 'recipe'
-                  ? await _showCustomizationDialog(context, ref, product)
-                  : const <String>[];
-              if (!mounted) return;
-              setState(() {
-                final index = _draftItems.indexWhere(
-                  (item) =>
-                      item.productId == product.id &&
-                      item.removedIngredients.join('|') ==
-                          removedIngredients.join('|'),
-                );
-                if (index >= 0) {
-                  final current = _draftItems[index];
-                  _draftItems[index] = OrderDraftItem(
-                    productId: current.productId,
-                    productName: current.productName,
-                    unitPrice: current.unitPrice,
-                    baseCost: current.baseCost,
-                    quantity: current.quantity + 1,
-                    notes: current.notes,
-                    removedIngredients: current.removedIngredients,
-                  );
-                } else {
-                  _draftItems.add(
-                    OrderDraftItem(
-                      productId: product.id,
-                      productName: product.name,
-                      unitPrice: product.salePrice,
-                      baseCost: product.calculatedCost,
-                      quantity: 1,
-                      removedIngredients: removedIngredients,
-                    ),
-                  );
-                }
-              });
+              await _addProductDraft(product);
             },
+            onAddPromo: (promo, products) => _addPromotion(promo, products),
             onUpdateQuantity: (index, quantity) {
               setState(() {
                 if (quantity <= 0) {
@@ -121,6 +221,7 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
                   baseCost: current.baseCost,
                   quantity: quantity,
                   notes: current.notes,
+                  comboLabel: current.comboLabel,
                   removedIngredients: current.removedIngredients,
                 );
               });
@@ -153,19 +254,45 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
           if (isWide) {
             return Row(
               children: [
-                Expanded(flex: 6, child: composer),
+                Expanded(
+                  flex: 6,
+                  child: RefreshIndicator(
+                    onRefresh: refreshData,
+                    child: composer,
+                  ),
+                ),
                 const VerticalDivider(width: 1),
-                Expanded(flex: 5, child: queue),
+                Expanded(
+                  flex: 5,
+                  child: RefreshIndicator(onRefresh: refreshData, child: queue),
+                ),
               ],
             );
           }
 
-          return ListView(
-            children: [
-              SizedBox(height: 700, child: composer),
-              const Divider(height: 1),
-              SizedBox(height: 700, child: queue),
-            ],
+          return DefaultTabController(
+            length: 2,
+            child: Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  child: TabBar(
+                    tabs: [
+                      Tab(text: 'Nueva'),
+                      Tab(text: 'Preparacion'),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: TabBarView(
+                    children: [
+                      RefreshIndicator(onRefresh: refreshData, child: composer),
+                      RefreshIndicator(onRefresh: refreshData, child: queue),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           );
         },
       ),
@@ -180,7 +307,10 @@ class _CommandComposer extends StatelessWidget {
     required this.notesController,
     required this.draftTotal,
     required this.currency,
+    required this.compact,
+    required this.promoPresets,
     required this.onAddProduct,
+    required this.onAddPromo,
     required this.onUpdateQuantity,
     required this.onSaveOrder,
   });
@@ -190,7 +320,11 @@ class _CommandComposer extends StatelessWidget {
   final TextEditingController notesController;
   final double draftTotal;
   final NumberFormat currency;
+  final bool compact;
+  final List<_PromoPreset> promoPresets;
   final Future<void> Function(dynamic product) onAddProduct;
+  final Future<void> Function(_PromoPreset promo, List<dynamic> products)
+  onAddPromo;
   final void Function(int index, int quantity) onUpdateQuantity;
   final Future<void> Function() onSaveOrder;
 
@@ -199,125 +333,247 @@ class _CommandComposer extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
       children: [
-        Container(
-          padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(28),
-            gradient: const LinearGradient(
-              colors: [Color(0xFF1A1208), Color(0xFF5A2208), Color(0xFFF28C00)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-            boxShadow: const [
-              BoxShadow(
-                color: Color(0x331B0A00),
-                blurRadius: 24,
-                offset: Offset(0, 14),
-              ),
-            ],
-          ),
-          child: Column(
+        Text('Nueva comanda', style: Theme.of(context).textTheme.headlineSmall),
+        const SizedBox(height: 20),
+        productsAsync.when(
+          data: (products) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
-                child: const Text(
-                  'ESTACION DE COMANDAS',
-                  style: TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.w800,
-                    letterSpacing: 1.1,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 16),
               Text(
-                'Toma pedidos rapido y deja visible cada preparacion.',
-                style: Theme.of(
-                  context,
-                ).textTheme.headlineSmall?.copyWith(color: Colors.white),
+                'Promociones',
+                style: Theme.of(context).textTheme.titleLarge,
               ),
-              const SizedBox(height: 8),
-              Text(
-                'La cola se mantiene abierta por defecto para ver ingredientes, cambios y estado sin clicks extra.',
-                style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: Colors.white.withValues(alpha: 0.9),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 20),
-        Text('Nueva comanda', style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 16),
-        productsAsync.when(
-          data: (products) => Wrap(
-            spacing: 12,
-            runSpacing: 12,
-            children: [
-              for (final product in products)
-                SizedBox(
-                  width: 200,
-                  child: Card(
-                    clipBehavior: Clip.antiAlias,
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(24),
-                      onTap: () => onAddProduct(product),
-                      child: Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Container(
-                              width: 40,
-                              height: 40,
+              const SizedBox(height: 12),
+              if (compact)
+                Column(
+                  children: [
+                    for (final promo in promoPresets)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: Card(
+                          clipBehavior: Clip.antiAlias,
+                          child: ListTile(
+                            leading: Container(
+                              width: 42,
+                              height: 42,
                               decoration: BoxDecoration(
                                 borderRadius: BorderRadius.circular(14),
                                 gradient: const LinearGradient(
                                   colors: [
-                                    Color(0xFFFFC14D),
+                                    Color(0xFF7A2E12),
                                     Color(0xFFF28C00),
                                   ],
                                 ),
                               ),
                               alignment: Alignment.center,
-                              child: Icon(
-                                product.productType == 'simple'
-                                    ? Icons.local_drink_rounded
-                                    : Icons.lunch_dining_rounded,
-                                color: const Color(0xFF1A1208),
+                              child: const Icon(
+                                Icons.local_offer_rounded,
+                                color: Colors.white,
                               ),
                             ),
-                            const SizedBox(height: 12),
-                            Text(
-                              product.name,
-                              style: Theme.of(context).textTheme.titleMedium,
+                            title: Text(promo.title),
+                            subtitle: Text(
+                              '${promo.description} · ${promo.dayLabel}',
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              product.productType == 'simple'
-                                  ? 'Simple'
-                                  : 'Con receta',
+                            trailing: Text(
+                              currency.format(promo.totalPrice),
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    color: const Color(0xFF7A2E12),
+                                    fontWeight: FontWeight.w800,
+                                  ),
                             ),
-                            const SizedBox(height: 8),
-                            Text(
-                              currency.format(product.salePrice),
-                              style: Theme.of(context).textTheme.titleLarge
-                                  ?.copyWith(color: const Color(0xFF7A2E12)),
-                            ),
-                          ],
+                            onTap: () => onAddPromo(promo, products),
+                          ),
                         ),
                       ),
-                    ),
-                  ),
+                  ],
+                )
+              else
+                Wrap(
+                  spacing: 12,
+                  runSpacing: 12,
+                  children: [
+                    for (final promo in promoPresets)
+                      SizedBox(
+                        width: 240,
+                        child: Card(
+                          clipBehavior: Clip.antiAlias,
+                          child: InkWell(
+                            onTap: () => onAddPromo(promo, products),
+                            child: Padding(
+                              padding: const EdgeInsets.all(16),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      borderRadius: BorderRadius.circular(14),
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Color(0xFF7A2E12),
+                                          Color(0xFFF28C00),
+                                        ],
+                                      ),
+                                    ),
+                                    alignment: Alignment.center,
+                                    child: const Icon(
+                                      Icons.local_offer_rounded,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    promo.title,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.titleMedium,
+                                  ),
+                                  const SizedBox(height: 6),
+                                  Text(promo.description),
+                                  const SizedBox(height: 10),
+                                  Text(
+                                    currency.format(promo.totalPrice),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(
+                                          color: const Color(0xFF7A2E12),
+                                        ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
+              const SizedBox(height: 20),
+              Text('Productos', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 12),
+              compact
+                  ? Column(
+                      children: [
+                        for (final product in products)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 10),
+                            child: Card(
+                              clipBehavior: Clip.antiAlias,
+                              child: ListTile(
+                                onTap: () => onAddProduct(product),
+                                leading: Container(
+                                  width: 42,
+                                  height: 42,
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(14),
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFFFFC14D),
+                                        Color(0xFFF28C00),
+                                      ],
+                                    ),
+                                  ),
+                                  alignment: Alignment.center,
+                                  child: Icon(
+                                    product.productType == 'simple'
+                                        ? Icons.local_drink_rounded
+                                        : Icons.lunch_dining_rounded,
+                                    color: const Color(0xFF1A1208),
+                                  ),
+                                ),
+                                title: Text(product.name),
+                                subtitle: Text(
+                                  product.productType == 'simple'
+                                      ? 'Simple'
+                                      : 'Con receta',
+                                ),
+                                trailing: Text(
+                                  currency.format(product.salePrice),
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(
+                                        color: const Color(0xFF7A2E12),
+                                        fontWeight: FontWeight.w800,
+                                      ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    )
+                  : Wrap(
+                      spacing: 12,
+                      runSpacing: 12,
+                      children: [
+                        for (final product in products)
+                          SizedBox(
+                            width: 200,
+                            child: Card(
+                              clipBehavior: Clip.antiAlias,
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(24),
+                                onTap: () => onAddProduct(product),
+                                child: Padding(
+                                  padding: const EdgeInsets.all(16),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Container(
+                                        width: 40,
+                                        height: 40,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            14,
+                                          ),
+                                          gradient: const LinearGradient(
+                                            colors: [
+                                              Color(0xFFFFC14D),
+                                              Color(0xFFF28C00),
+                                            ],
+                                          ),
+                                        ),
+                                        alignment: Alignment.center,
+                                        child: Icon(
+                                          product.productType == 'simple'
+                                              ? Icons.local_drink_rounded
+                                              : Icons.lunch_dining_rounded,
+                                          color: const Color(0xFF1A1208),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 12),
+                                      Text(
+                                        product.name,
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.titleMedium,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        product.productType == 'simple'
+                                            ? 'Simple'
+                                            : 'Con receta',
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        currency.format(product.salePrice),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleLarge
+                                            ?.copyWith(
+                                              color: const Color(0xFF7A2E12),
+                                            ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
+                    ),
             ],
           ),
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -339,10 +595,24 @@ class _CommandComposer extends StatelessWidget {
                     (entry) => ListTile(
                       contentPadding: EdgeInsets.zero,
                       title: Text(entry.value.productName),
-                      subtitle: Text(
-                        entry.value.removedIngredients.isEmpty
-                            ? 'Sin cambios'
-                            : 'Sin: ${entry.value.removedIngredients.join(', ')}',
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (entry.value.comboLabel != null)
+                            Text(
+                              entry.value.comboLabel!,
+                              style: const TextStyle(
+                                color: Color(0xFF7A2E12),
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          Text(
+                            entry.value.removedIngredients.isEmpty
+                                ? 'Sin cambios'
+                                : 'Sin: ${entry.value.removedIngredients.join(', ')}',
+                          ),
+                        ],
                       ),
                       leading: CircleAvatar(
                         backgroundColor: const Color(0xFFFFD27A),
@@ -388,6 +658,12 @@ class _CommandComposer extends StatelessWidget {
                   icon: const Icon(Icons.playlist_add_check_circle_rounded),
                   label: const Text('Guardar comanda'),
                 ),
+                if (compact) ...[
+                  const SizedBox(height: 10),
+                  const Text(
+                    'Tip: usa la pestaña Preparacion para ver la cola completa mientras cocinas.',
+                  ),
+                ],
               ],
             ),
           ),
@@ -395,6 +671,68 @@ class _CommandComposer extends StatelessWidget {
       ],
     );
   }
+}
+
+Future<List<dynamic>?> _showPromoSelectionDialog(
+  BuildContext context,
+  _PromoPreset promo,
+  List<dynamic> products,
+) async {
+  final selectable = products
+      .where((product) => promo.selectableProductNames.contains(product.name))
+      .toList();
+  if (selectable.isEmpty) return null;
+
+  final selected = List<dynamic>.filled(promo.count, selectable.first);
+  return showDialog<List<dynamic>>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: Text(promo.title),
+        content: SizedBox(
+          width: 380,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(promo.description),
+              const SizedBox(height: 16),
+              for (var i = 0; i < promo.count; i++) ...[
+                DropdownButtonFormField<dynamic>(
+                  initialValue: selected[i],
+                  decoration: InputDecoration(labelText: 'Producto ${i + 1}'),
+                  items: selectable
+                      .map<DropdownMenuItem<dynamic>>(
+                        (product) => DropdownMenuItem<dynamic>(
+                          value: product,
+                          child: Text(product.name),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    setState(() => selected[i] = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () {
+              if (selected.any((item) => item == null)) return;
+              Navigator.of(context).pop(selected.cast<dynamic>());
+            },
+            child: const Text('Continuar'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _OrdersQueue extends ConsumerWidget {
@@ -414,6 +752,7 @@ class _OrdersQueue extends ConsumerWidget {
         }
 
         return ListView.separated(
+          physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
           itemCount: orders.length,
           separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -515,6 +854,21 @@ class _OrdersQueue extends ConsumerWidget {
                                                   fontWeight: FontWeight.w800,
                                                 ),
                                               ),
+                                              if (item.notes != null)
+                                                Padding(
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                        top: 4,
+                                                      ),
+                                                  child: Text(
+                                                    item.notes!,
+                                                    style: const TextStyle(
+                                                      color: Color(0xFF7A2E12),
+                                                      fontWeight:
+                                                          FontWeight.w700,
+                                                    ),
+                                                  ),
+                                                ),
                                               if (item
                                                   .removedIngredients
                                                   .isNotEmpty)
@@ -626,8 +980,9 @@ String _statusLabel(String status) {
 Future<List<String>> _showCustomizationDialog(
   BuildContext context,
   WidgetRef ref,
-  dynamic product,
-) async {
+  dynamic product, {
+  String? comboLabel,
+}) async {
   final ingredientNames = await ref
       .read(comandasRepositoryProvider)
       .fetchRecipeIngredientNames(product.id);
@@ -640,7 +995,11 @@ Future<List<String>> _showCustomizationDialog(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
-        title: Text('Personalizar ${product.name}'),
+        title: Text(
+          comboLabel == null
+              ? 'Personalizar ${product.name}'
+              : '$comboLabel · ${product.name}',
+        ),
         content: SizedBox(
           width: 360,
           child: Column(
