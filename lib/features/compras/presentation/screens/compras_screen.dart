@@ -174,65 +174,135 @@ class _PurchaseDialogState extends ConsumerState<_PurchaseDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final selectedIngredient = widget.ingredients
+        .where((ingredient) => ingredient.id == _ingredientId)
+        .firstOrNull;
     final previewQuantity =
         double.tryParse(_quantityController.text.trim()) ?? 0;
     final previewTotal = double.tryParse(_totalController.text.trim()) ?? 0;
     final unitCost = previewQuantity > 0 ? previewTotal / previewQuantity : 0;
+    final currentStock = selectedIngredient?.stockQuantity ?? 0;
+    final nextStock = currentStock + previewQuantity;
+    final nextAverageCost = selectedIngredient == null || previewQuantity <= 0
+        ? 0
+        : currentStock <= 0
+        ? unitCost
+        : ((currentStock * selectedIngredient.currentUnitCost) + previewTotal) /
+              nextStock;
     final currency = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
 
     return AlertDialog(
       title: const Text('Registrar compra'),
       content: SizedBox(
         width: 420,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            DropdownButtonFormField<String>(
-              initialValue: _ingredientId,
-              decoration: const InputDecoration(labelText: 'Ingrediente'),
-              items: widget.ingredients
-                  .map<DropdownMenuItem<String>>(
-                    (ingredient) => DropdownMenuItem<String>(
-                      value: ingredient.id,
-                      child: Text(ingredient.name),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              DropdownButtonFormField<String>(
+                initialValue: _ingredientId,
+                decoration: const InputDecoration(labelText: 'Ingrediente'),
+                items: widget.ingredients
+                    .map<DropdownMenuItem<String>>(
+                      (ingredient) => DropdownMenuItem<String>(
+                        value: ingredient.id,
+                        child: Text(ingredient.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) => setState(() => _ingredientId = value),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _quantityController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: InputDecoration(
+                        labelText: selectedIngredient == null
+                            ? 'Cantidad'
+                            : 'Cantidad (${selectedIngredient.unitName})',
+                      ),
+                      onChanged: (_) => setState(() {}),
                     ),
-                  )
-                  .toList(),
-              onChanged: (value) => setState(() => _ingredientId = value),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _quantityController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: TextField(
+                      controller: _totalController,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Costo total',
+                      ),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ),
+                ],
               ),
-              decoration: const InputDecoration(labelText: 'Cantidad comprada'),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _totalController,
-              keyboardType: const TextInputType.numberWithOptions(
-                decimal: true,
+              const SizedBox(height: 12),
+              TextField(
+                controller: _noteController,
+                decoration: const InputDecoration(labelText: 'Nota opcional'),
               ),
-              decoration: const InputDecoration(
-                labelText: 'Costo total pagado',
+              const SizedBox(height: 14),
+              AppSectionCard(
+                title: 'Impacto',
+                child: Column(
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AppMiniStatCard(
+                            label: 'Costo compra',
+                            value: currency.format(unitCost),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: AppMiniStatCard(
+                            label: 'Costo promedio nuevo',
+                            value: currency.format(nextAverageCost),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: AppMiniStatCard(
+                            label: 'Stock actual',
+                            value: selectedIngredient == null
+                                ? '-'
+                                : currentStock.toStringAsFixed(2),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: AppMiniStatCard(
+                            label: 'Stock despues',
+                            value: selectedIngredient == null
+                                ? '-'
+                                : nextStock.toStringAsFixed(2),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Text(
+                      'Esta compra afecta costos futuros. No recalcula ventas pasadas.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
               ),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _noteController,
-              decoration: const InputDecoration(labelText: 'Nota opcional'),
-            ),
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(
-                'Costo unitario calculado: ${currency.format(unitCost)}',
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
       actions: [

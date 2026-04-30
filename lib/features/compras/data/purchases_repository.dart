@@ -49,10 +49,21 @@ class PurchasesRepository {
     required String? note,
   }) async {
     final now = DateTime.now();
-    final unitCost = totalCost / quantity;
     final purchaseId = _uuid.v4();
 
     await _database.transaction(() async {
+      final ingredient = await (_database.select(
+        _database.ingredients,
+      )..where((table) => table.id.equals(ingredientId))).getSingle();
+
+      final unitCost = totalCost / quantity;
+      final currentStock = ingredient.stockQuantity ?? 0;
+      final nextStock = currentStock + quantity;
+      final weightedUnitCost = currentStock <= 0
+          ? unitCost
+          : ((currentStock * ingredient.currentUnitCost) + totalCost) /
+                nextStock;
+
       await _database
           .into(_database.ingredientPurchases)
           .insert(
@@ -72,28 +83,46 @@ class PurchasesRepository {
         _database.ingredients,
       )..where((table) => table.id.equals(ingredientId))).write(
         IngredientsCompanion(
-          currentUnitCost: Value(unitCost),
+          currentUnitCost: Value(weightedUnitCost),
+          stockQuantity: Value(nextStock),
           updatedAt: Value(now),
         ),
       );
-    });
 
-    await _syncQueueService.enqueue(
-      entityType: 'ingredient_purchases',
-      entityId: purchaseId,
-      operationType: 'upsert',
-      payload: {
-        'id': purchaseId,
-        'ingredient_id': ingredientId,
-        'purchased_quantity': quantity,
-        'total_cost': totalCost,
-        'unit_cost': unitCost,
-        'note': note?.isEmpty ?? true ? null : note,
-        'purchased_at': now.toUtc().toIso8601String(),
-        'created_at': now.toUtc().toIso8601String(),
-        'updated_at': now.toUtc().toIso8601String(),
-      },
-    );
+      await _syncQueueService.enqueue(
+        entityType: 'ingredients',
+        entityId: ingredient.id,
+        operationType: 'upsert',
+        payload: {
+          'id': ingredient.id,
+          'name': ingredient.name,
+          'unit_name': ingredient.unitName,
+          'current_unit_cost': weightedUnitCost,
+          'stock_quantity': nextStock,
+          'is_active': ingredient.isActive,
+          'created_at': ingredient.createdAt.toUtc().toIso8601String(),
+          'updated_at': now.toUtc().toIso8601String(),
+          'deleted_at': ingredient.deletedAt?.toUtc().toIso8601String(),
+        },
+      );
+
+      await _syncQueueService.enqueue(
+        entityType: 'ingredient_purchases',
+        entityId: purchaseId,
+        operationType: 'upsert',
+        payload: {
+          'id': purchaseId,
+          'ingredient_id': ingredientId,
+          'purchased_quantity': quantity,
+          'total_cost': totalCost,
+          'unit_cost': unitCost,
+          'note': note?.isEmpty ?? true ? null : note,
+          'purchased_at': now.toUtc().toIso8601String(),
+          'created_at': now.toUtc().toIso8601String(),
+          'updated_at': now.toUtc().toIso8601String(),
+        },
+      );
+    });
   }
 }
 
