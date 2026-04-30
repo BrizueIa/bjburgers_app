@@ -132,7 +132,11 @@ class ReportesScreen extends ConsumerWidget {
                         itemBuilder: (context, index) => cards[index],
                       ),
                     const SizedBox(height: 14),
-                    _InsightCard(report: report, currency: currency),
+                    _FlowOverviewCard(report: report, currency: currency),
+                    const SizedBox(height: 12),
+                    _HighlightsCard(report: report, currency: currency),
+                    const SizedBox(height: 12),
+                    _SalesDetailCard(report: report, currency: currency),
                     const SizedBox(height: 12),
                     if (isWide)
                       Row(
@@ -255,17 +259,19 @@ class _KpiCard extends StatelessWidget {
   }
 }
 
-class _InsightCard extends StatelessWidget {
-  const _InsightCard({required this.report, required this.currency});
+class _FlowOverviewCard extends StatelessWidget {
+  const _FlowOverviewCard({required this.report, required this.currency});
 
   final ReportSnapshot report;
   final NumberFormat currency;
 
   @override
   Widget build(BuildContext context) {
-    final top = report.topProducts.isEmpty ? null : report.topProducts.first;
-    final net = report.totalSales - report.totalPurchases;
-    final favoritePromo = report.favoritePromo;
+    final maxAmount = [
+      report.totalSales,
+      report.totalPurchases,
+      report.estimatedProfit,
+    ].fold<double>(1, (current, value) => value > current ? value : current);
 
     return Card(
       child: Padding(
@@ -273,34 +279,79 @@ class _InsightCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Resumen', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            _InsightRow(
-              label: 'Ingreso neto vs compras',
-              value: currency.format(net),
+            Text('Flujo', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            _FlowBar(
+              label: 'Ventas',
+              value: report.totalSales,
+              maxValue: maxAmount,
+              color: const Color(0xFF1F1A14),
+              text: currency.format(report.totalSales),
             ),
-            _InsightRow(
-              label: 'Metodo mas fuerte',
-              value: report.cashSales >= report.transferSales
-                  ? 'Efectivo'
-                  : 'Transferencia',
+            _FlowBar(
+              label: 'Compras',
+              value: report.totalPurchases,
+              maxValue: maxAmount,
+              color: const Color(0xFFC98B2E),
+              text: currency.format(report.totalPurchases),
             ),
-            _InsightRow(
+            _FlowBar(
+              label: 'Utilidad',
+              value: report.estimatedProfit,
+              maxValue: maxAmount,
+              color: const Color(0xFF3E9B47),
+              text: currency.format(report.estimatedProfit),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _HighlightsCard extends StatelessWidget {
+  const _HighlightsCard({required this.report, required this.currency});
+
+  final ReportSnapshot report;
+  final NumberFormat currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final top = report.topProducts.isEmpty ? null : report.topProducts.first;
+    final favoritePromo = report.favoritePromo;
+    final strongestMethod = report.cashSales >= report.transferSales
+        ? 'Efectivo'
+        : 'Transferencia';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _HighlightPill(label: 'Metodo fuerte', value: strongestMethod),
+            _HighlightPill(
               label: 'Producto lider',
               value: top == null
                   ? 'Sin ventas'
-                  : '${top.productName} · ${top.quantity} uds',
+                  : '${top.productName} · ${top.quantity}',
             ),
-            _InsightRow(
-              label: 'Categoria dominante',
+            _HighlightPill(
+              label: 'Categoria',
               value: report.favoriteCategory ?? 'Sin datos',
             ),
-            _InsightRow(
-              label: 'Promo favorita',
+            _HighlightPill(
+              label: 'Promo',
               value: favoritePromo == null
-                  ? 'Sin promos registradas'
-                  : '${favoritePromo.promoName} · ${favoritePromo.timesUsed} usos',
+                  ? 'Sin promos'
+                  : '${favoritePromo.promoName} · ${favoritePromo.timesUsed}',
             ),
+            _HighlightPill(
+              label: 'Ticket prom.',
+              value: currency.format(report.averageTicket),
+            ),
+            _HighlightPill(label: 'Hora pico', value: report.peakHourLabel),
           ],
         ),
       ),
@@ -377,28 +428,76 @@ class _CategoryBreakdownCard extends StatelessWidget {
   }
 }
 
-class _InsightRow extends StatelessWidget {
-  const _InsightRow({required this.label, required this.value});
+class _FlowBar extends StatelessWidget {
+  const _FlowBar({
+    required this.label,
+    required this.value,
+    required this.maxValue,
+    required this.color,
+    required this.text,
+  });
+
+  final String label;
+  final double value;
+  final double maxValue;
+  final Color color;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = maxValue <= 0
+        ? 0.0
+        : (value / maxValue).clamp(0.0, 1.0).toDouble();
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(child: Text(label)),
+              Text(text, style: const TextStyle(fontWeight: FontWeight.w800)),
+            ],
+          ),
+          const SizedBox(height: 6),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 10,
+              backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+              valueColor: AlwaysStoppedAnimation<Color>(color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HighlightPill extends StatelessWidget {
+  const _HighlightPill({required this.label, required this.value});
 
   final String label;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
+    return Container(
+      constraints: const BoxConstraints(minWidth: 132),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.primaryContainer,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(child: Text(label)),
-          const SizedBox(width: 12),
-          Flexible(
-            child: Text(
-              value,
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            ),
-          ),
+          Text(label, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 2),
+          Text(value, style: Theme.of(context).textTheme.titleSmall),
         ],
       ),
     );
@@ -575,6 +674,87 @@ class _CashSessionsReportCard extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.w800),
                       ),
                       Text('Transf. ${currency.format(session.transferTotal)}'),
+                    ],
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SalesDetailCard extends StatelessWidget {
+  const _SalesDetailCard({required this.report, required this.currency});
+
+  final ReportSnapshot report;
+  final NumberFormat currency;
+
+  @override
+  Widget build(BuildContext context) {
+    final dateFormat = DateFormat('dd/MM HH:mm');
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Desglose de ventas',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            if (report.salesDetails.isEmpty)
+              const Text('No hay ventas en este rango.')
+            else
+              ...report.salesDetails.map(
+                (sale) => Container(
+                  margin: const EdgeInsets.only(bottom: 10),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              sale.saleNumber,
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                          ),
+                          Text(
+                            currency.format(sale.totalAmount),
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '${dateFormat.format(sale.soldAt)} · ${sale.paymentMethod == 'cash' ? 'Efectivo' : 'Transferencia'} · ${sale.totalUnits} uds',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: sale.itemsSummary
+                            .map((item) => Chip(label: Text(item)))
+                            .toList(),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Utilidad ${currency.format(sale.estimatedProfit)}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
                     ],
                   ),
                 ),

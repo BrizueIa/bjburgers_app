@@ -5,7 +5,6 @@ import 'package:go_router/go_router.dart';
 import '../../features/caja/presentation/screens/caja_screen.dart';
 import '../../features/comandas/presentation/screens/comandas_screen.dart';
 import '../../features/compras/presentation/screens/compras_screen.dart';
-import '../../features/dashboard/presentation/screens/dashboard_screen.dart';
 import '../../features/inventario/presentation/screens/inventario_screen.dart';
 import '../../features/pos/presentation/screens/pos_screen.dart';
 import '../../features/reportes/presentation/screens/reportes_screen.dart';
@@ -14,19 +13,12 @@ import '../shell/app_shell.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
-    initialLocation: AppDestination.dashboard.route,
+    initialLocation: AppDestination.comandas.route,
     routes: [
       ShellRoute(
         builder: (context, state, child) =>
             AppShell(location: state.matchedLocation, child: child),
         routes: [
-          GoRoute(
-            path: AppDestination.dashboard.route,
-            pageBuilder: (context, state) => _buildRouteTransition(
-              state: state,
-              child: const DashboardScreen(),
-            ),
-          ),
           GoRoute(
             path: AppDestination.pos.route,
             pageBuilder: (context, state) =>
@@ -109,7 +101,6 @@ CustomTransitionPage<void> _buildRouteTransition({
 }
 
 enum AppDestination {
-  dashboard('/dashboard', 'Dashboard', Icons.space_dashboard_rounded),
   pos('/pos', 'POS', Icons.point_of_sale_rounded),
   comandas('/comandas', 'Comandas', Icons.receipt_long_rounded),
   inventario('/inventario', 'Inventario', Icons.inventory_2_rounded),
@@ -127,7 +118,7 @@ enum AppDestination {
   static AppDestination fromLocation(String location) {
     return AppDestination.values.firstWhere(
       (destination) => location.startsWith(destination.route),
-      orElse: () => AppDestination.dashboard,
+      orElse: () => AppDestination.comandas,
     );
   }
 }

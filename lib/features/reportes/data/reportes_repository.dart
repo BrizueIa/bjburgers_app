@@ -101,6 +101,26 @@ class CashReportRow {
   final String status;
 }
 
+class SaleDetailReportRow {
+  const SaleDetailReportRow({
+    required this.saleNumber,
+    required this.paymentMethod,
+    required this.soldAt,
+    required this.totalAmount,
+    required this.estimatedProfit,
+    required this.totalUnits,
+    required this.itemsSummary,
+  });
+
+  final String saleNumber;
+  final String paymentMethod;
+  final DateTime soldAt;
+  final double totalAmount;
+  final double estimatedProfit;
+  final int totalUnits;
+  final List<String> itemsSummary;
+}
+
 class ReportSnapshot {
   const ReportSnapshot({
     required this.range,
@@ -119,6 +139,7 @@ class ReportSnapshot {
     required this.categoryBreakdown,
     required this.promos,
     required this.cashSessions,
+    required this.salesDetails,
   });
 
   final ReportDateRange range;
@@ -137,6 +158,7 @@ class ReportSnapshot {
   final List<CategoryReportRow> categoryBreakdown;
   final List<PromoReportRow> promos;
   final List<CashReportRow> cashSessions;
+  final List<SaleDetailReportRow> salesDetails;
 }
 
 class ReportesRepository {
@@ -303,6 +325,31 @@ class ReportesRepository {
         )
         .get();
 
+    final salesDetailsRows = await _database
+        .customSelect(
+          '''
+      SELECT
+        s.sale_number,
+        s.payment_method,
+        s.sold_at,
+        s.total_amount,
+        s.estimated_profit,
+        COALESCE(SUM(si.quantity), 0) AS total_units,
+        GROUP_CONCAT(si.product_name_snapshot || ' x' || si.quantity, ' · ') AS items_summary
+      FROM sales s
+      LEFT JOIN sale_items si ON si.sale_id = s.id
+      WHERE s.sold_at >= ? AND s.sold_at <= ?
+      GROUP BY s.id
+      ORDER BY s.sold_at DESC
+      ''',
+          variables: [
+            Variable<DateTime>(range.start),
+            Variable<DateTime>(range.end),
+          ],
+          readsFrom: {_database.sales, _database.saleItems},
+        )
+        .get();
+
     return ReportSnapshot(
       range: range,
       totalSales: salesRow.read<double>('total_sales'),
@@ -316,20 +363,22 @@ class ReportesRepository {
           ? 0
           : salesRow.read<double>('total_sales') /
                 salesRow.read<int>('total_sales_count'),
-      peakHourLabel: peakHourRow?.read<String>('hour_label') ?? 'Sin datos',
+      peakHourLabel: peakHourRow == null
+          ? 'Sin datos'
+          : _readString(peakHourRow, 'hour_label'),
       favoriteCategory: categoryRows.isEmpty
           ? null
-          : categoryRows.first.read<String>('category_name'),
+          : _readString(categoryRows.first, 'category_name'),
       favoritePromo: promoRows.isEmpty
           ? null
           : PromoReportRow(
-              promoName: promoRows.first.read<String>('promo_name'),
+              promoName: _readString(promoRows.first, 'promo_name'),
               timesUsed: promoRows.first.read<int>('times_used'),
             ),
       topProducts: productsRows
           .map(
             (row) => ProductReportRow(
-              productName: row.read<String>('product_name_snapshot'),
+              productName: _readString(row, 'product_name_snapshot'),
               quantity: row.read<int>('total_quantity'),
               salesAmount: row.read<double>('total_sales'),
               costAmount: row.read<double>('total_cost'),
@@ -340,7 +389,7 @@ class ReportesRepository {
       categoryBreakdown: categoryRows
           .map(
             (row) => CategoryReportRow(
-              categoryName: row.read<String>('category_name'),
+              categoryName: _readString(row, 'category_name'),
               quantity: row.read<int>('total_quantity'),
               salesAmount: row.read<double>('total_sales'),
             ),
@@ -349,7 +398,7 @@ class ReportesRepository {
       promos: promoRows
           .map(
             (row) => PromoReportRow(
-              promoName: row.read<String>('promo_name'),
+              promoName: _readString(row, 'promo_name'),
               timesUsed: row.read<int>('times_used'),
             ),
           )
@@ -363,12 +412,43 @@ class ReportesRepository {
               realCash: row.read<double?>('closing_real_cash'),
               difference: row.read<double?>('difference_amount'),
               transferTotal: row.read<double>('transfer_total'),
-              status: row.read<String>('status'),
+              status: _readString(row, 'status', fallback: 'unknown'),
+            ),
+          )
+          .toList(),
+      salesDetails: salesDetailsRows
+          .map(
+            (row) => SaleDetailReportRow(
+              saleNumber: _readString(row, 'sale_number'),
+              paymentMethod: _readString(
+                row,
+                'payment_method',
+                fallback: 'cash',
+              ),
+              soldAt: row.read<DateTime>('sold_at'),
+              totalAmount: row.read<double>('total_amount'),
+              estimatedProfit: row.read<double>('estimated_profit'),
+              totalUnits: row.read<int>('total_units'),
+              itemsSummary: (_readString(
+                row,
+                'items_summary',
+                fallback: '',
+              )).split(' · ').where((item) => item.trim().isNotEmpty).toList(),
             ),
           )
           .toList(),
     );
   }
+}
+
+String _readString(
+  QueryRow row,
+  String column, {
+  String fallback = 'Sin dato',
+}) {
+  final value = row.read<String?>(column)?.trim();
+  if (value == null || value.isEmpty) return fallback;
+  return value;
 }
 
 final reportesRepositoryProvider = Provider<ReportesRepository>((ref) {

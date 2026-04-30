@@ -8,6 +8,7 @@ import '../../../core/database/app_database.dart';
 import '../../../core/database/app_database_provider.dart';
 import '../../../core/storage/local_settings_store.dart';
 import '../../../core/sync/sync_queue_service.dart';
+import '../../comandas/data/order_item_notes.dart';
 import '../../caja/data/caja_repository.dart';
 import '../../comandas/data/comandas_repository.dart';
 
@@ -347,7 +348,51 @@ class PosRepository {
           );
         }
       }
+
+      await _consumeExtraStock(item, now);
     }
+  }
+
+  Future<void> _consumeExtraStock(OrderItem item, DateTime now) async {
+    final extraProductId = extractExtraProductId(item.notes);
+    if (extraProductId == null || extraProductId.isEmpty) return;
+
+    final extraProduct = await (_database.select(
+      _database.products,
+    )..where((table) => table.id.equals(extraProductId))).getSingleOrNull();
+    if (extraProduct == null || extraProduct.deletedAt != null) return;
+    if (extraProduct.productType != 'simple' || !extraProduct.trackStock) {
+      return;
+    }
+
+    final nextStock = ((extraProduct.stockQuantity ?? 0) - item.quantity)
+        .clamp(0, 9999999)
+        .toDouble();
+    await (_database.update(
+      _database.products,
+    )..where((table) => table.id.equals(extraProduct.id))).write(
+      ProductsCompanion(stockQuantity: Value(nextStock), updatedAt: Value(now)),
+    );
+    await _syncQueueService.enqueue(
+      entityType: 'products',
+      entityId: extraProduct.id,
+      operationType: 'upsert',
+      payload: {
+        'id': extraProduct.id,
+        'name': extraProduct.name,
+        'category_name': extraProduct.categoryName,
+        'product_type': extraProduct.productType,
+        'sale_price': extraProduct.salePrice,
+        'direct_cost': extraProduct.directCost,
+        'stock_quantity': nextStock,
+        'track_stock': extraProduct.trackStock,
+        'display_order': extraProduct.displayOrder,
+        'is_active': extraProduct.isActive,
+        'created_at': extraProduct.createdAt.toUtc().toIso8601String(),
+        'updated_at': now.toUtc().toIso8601String(),
+        'deleted_at': extraProduct.deletedAt?.toUtc().toIso8601String(),
+      },
+    );
   }
 }
 

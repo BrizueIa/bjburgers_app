@@ -142,10 +142,10 @@ class _MobileNavigation extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const primaryItems = [
-      AppDestination.dashboard,
       AppDestination.comandas,
       AppDestination.pos,
       AppDestination.caja,
+      AppDestination.reportes,
       null,
     ];
 
@@ -178,7 +178,6 @@ class _MobileNavigation extends StatelessWidget {
                     for (final item in const [
                       AppDestination.inventario,
                       AppDestination.compras,
-                      AppDestination.reportes,
                       AppDestination.settings,
                     ])
                       ListTile(
@@ -206,10 +205,6 @@ class _MobileNavigation extends StatelessWidget {
       },
       destinations: const [
         NavigationDestination(
-          icon: Icon(Icons.space_dashboard_rounded),
-          label: 'Inicio',
-        ),
-        NavigationDestination(
           icon: Icon(Icons.receipt_long_rounded),
           label: 'Comandas',
         ),
@@ -220,6 +215,10 @@ class _MobileNavigation extends StatelessWidget {
         NavigationDestination(
           icon: Icon(Icons.payments_rounded),
           label: 'Caja',
+        ),
+        NavigationDestination(
+          icon: Icon(Icons.bar_chart_rounded),
+          label: 'Reportes',
         ),
         NavigationDestination(
           icon: Icon(Icons.grid_view_rounded),

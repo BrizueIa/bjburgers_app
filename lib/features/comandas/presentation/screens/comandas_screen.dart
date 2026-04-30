@@ -7,6 +7,7 @@ import '../../../../core/storage/promo_config.dart';
 import '../../../../core/storage/app_settings_controller.dart';
 import '../../../../core/sync/sync_status_controller.dart';
 import '../../data/comandas_repository.dart';
+import '../../data/order_item_notes.dart';
 import '../controllers/comandas_controller.dart';
 
 class ComandasScreen extends ConsumerStatefulWidget {
@@ -21,7 +22,8 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
   final TextEditingController _notesController = TextEditingController();
 
   Future<void> _addProductDraft(
-    dynamic product, {
+    dynamic product,
+    List<dynamic> products, {
     String? comboLabel,
     String? draftNote,
     double? overrideUnitPrice,
@@ -36,16 +38,41 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
         : const <String>[];
     if (!mounted) return;
 
+    final availableExtras = products
+        .where(
+          (item) =>
+              item.productType == 'simple' &&
+              item.trackStock &&
+              item.id != product.id,
+        )
+        .toList();
+    final selectedExtra = await _showExtraSelectionDialog(
+      context,
+      availableExtras,
+      productName: product.name,
+      comboLabel: comboLabel,
+    );
+
+    if (!mounted) return;
+
     setState(() {
       _draftItems.add(
         OrderDraftItem(
           productId: product.id,
           productName: product.name,
-          unitPrice: overrideUnitPrice ?? product.salePrice,
-          baseCost: product.calculatedCost,
+          unitPrice:
+              (overrideUnitPrice ?? product.salePrice) +
+              ((selectedExtra?.salePrice as double?) ?? 0),
+          baseCost:
+              product.calculatedCost +
+              ((selectedExtra?.calculatedCost as double?) ?? 0),
           quantity: 1,
           comboLabel: comboLabel,
-          notes: draftNote ?? comboLabel,
+          notes: buildOrderItemNotes(
+            baseNotes: draftNote ?? comboLabel,
+            extraProductId: selectedExtra?.id as String?,
+            extraProductName: selectedExtra?.name as String?,
+          ),
           removedIngredients: removedIngredients,
         ),
       );
@@ -84,6 +111,7 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
           : promo.title;
       await _addProductDraft(
         selectedProducts[i],
+        products,
         comboLabel: itemLabel,
         draftNote: 'Promo ${promo.title} · ${i + 1}/${selectedProducts.length}',
         overrideUnitPrice: unitPrice,
@@ -154,46 +182,37 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
             currency: currency,
             compact: !isWide,
             promoPresets: settings.promoConfigs,
-            onAddProduct: (product) async {
-              await _addProductDraft(product);
+            onAddProduct: (product, products) async {
+              await _addProductDraft(product, products);
             },
             onAddPromo: (promo, products) => _addPromotion(promo, products),
-            onUpdateQuantity: (index, quantity) {
-              setState(() {
-                if (quantity <= 0) {
-                  _draftItems.removeAt(index);
-                  return;
-                }
-                final current = _draftItems[index];
-                _draftItems[index] = OrderDraftItem(
-                  productId: current.productId,
-                  productName: current.productName,
-                  unitPrice: current.unitPrice,
-                  baseCost: current.baseCost,
-                  quantity: quantity,
-                  notes: current.notes,
-                  comboLabel: current.comboLabel,
-                  removedIngredients: current.removedIngredients,
-                );
-              });
-            },
             onSaveOrder: () async {
               if (_draftItems.isEmpty) return;
-              final messenger = ScaffoldMessenger.of(context);
+              final confirmed = await showDialog<bool>(
+                context: context,
+                builder: (context) => _ConfirmOrderDialog(
+                  draftItems: _draftItems,
+                  notesController: _notesController,
+                  draftTotal: _draftTotal,
+                  currency: currency,
+                ),
+              );
+              if (!mounted || confirmed != true) return;
+
               await ref
                   .read(comandasRepositoryProvider)
                   .createOrder(
                     notes: _notesController.text.trim(),
                     items: List<OrderDraftItem>.from(_draftItems),
                   );
-              if (!mounted) return;
+              if (!context.mounted) return;
               setState(() {
                 _draftItems.clear();
                 _notesController.clear();
               });
-              messenger.showSnackBar(
-                const SnackBar(content: Text('Comanda creada.')),
-              );
+              ScaffoldMessenger.of(
+                context,
+              ).showSnackBar(const SnackBar(content: Text('Comanda creada.')));
             },
           );
 
@@ -263,7 +282,6 @@ class _CommandComposer extends StatelessWidget {
     required this.promoPresets,
     required this.onAddProduct,
     required this.onAddPromo,
-    required this.onUpdateQuantity,
     required this.onSaveOrder,
   });
 
@@ -274,10 +292,10 @@ class _CommandComposer extends StatelessWidget {
   final NumberFormat currency;
   final bool compact;
   final List<PromoConfig> promoPresets;
-  final Future<void> Function(dynamic product) onAddProduct;
+  final Future<void> Function(dynamic product, List<dynamic> products)
+  onAddProduct;
   final Future<void> Function(PromoConfig promo, List<dynamic> products)
   onAddPromo;
-  final void Function(int index, int quantity) onUpdateQuantity;
   final Future<void> Function() onSaveOrder;
 
   @override
@@ -320,7 +338,7 @@ class _CommandComposer extends StatelessWidget {
                 child: Card(
                   clipBehavior: Clip.antiAlias,
                   child: InkWell(
-                    onTap: () => onAddProduct(product),
+                    onTap: () => onAddProduct(product, products),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
                         horizontal: 14,
@@ -523,7 +541,7 @@ class _CommandComposer extends StatelessWidget {
                             clipBehavior: Clip.antiAlias,
                             child: InkWell(
                               borderRadius: BorderRadius.circular(12),
-                              onTap: () => onAddProduct(product),
+                              onTap: () => onAddProduct(product, products),
                               child: Padding(
                                 padding: const EdgeInsets.all(14),
                                 child: Column(
@@ -580,15 +598,6 @@ class _CommandComposer extends StatelessWidget {
       );
     }
 
-    final summaryCard = _OrderSummaryCard(
-      draftItems: draftItems,
-      notesController: notesController,
-      draftTotal: draftTotal,
-      currency: currency,
-      onUpdateQuantity: onUpdateQuantity,
-      compact: compact,
-    );
-
     return productsAsync.when(
       data: (products) {
         if (compact) {
@@ -596,11 +605,7 @@ class _CommandComposer extends StatelessWidget {
             children: [
               ListView(
                 padding: const EdgeInsets.fromLTRB(16, 16, 16, 104),
-                children: [
-                  buildCatalog(products),
-                  const SizedBox(height: 12),
-                  summaryCard,
-                ],
+                children: [buildCatalog(products)],
               ),
               Align(
                 alignment: Alignment.bottomCenter,
@@ -629,19 +634,13 @@ class _CommandComposer extends StatelessWidget {
                 Expanded(flex: 7, child: buildCatalog(products)),
                 const SizedBox(width: 16),
                 Expanded(
-                  flex: 4,
-                  child: Column(
-                    children: [
-                      summaryCard,
-                      const SizedBox(height: 12),
-                      _SaveOrderBar(
-                        totalItems: totalItems,
-                        draftTotal: draftTotal,
-                        currency: currency,
-                        onSaveOrder: draftItems.isEmpty ? null : onSaveOrder,
-                        compact: false,
-                      ),
-                    ],
+                  flex: 3,
+                  child: _SaveOrderBar(
+                    totalItems: totalItems,
+                    draftTotal: draftTotal,
+                    currency: currency,
+                    onSaveOrder: draftItems.isEmpty ? null : onSaveOrder,
+                    compact: false,
                   ),
                 ),
               ],
@@ -661,7 +660,6 @@ class _OrderSummaryCard extends StatelessWidget {
     required this.notesController,
     required this.draftTotal,
     required this.currency,
-    required this.onUpdateQuantity,
     required this.compact,
   });
 
@@ -669,7 +667,6 @@ class _OrderSummaryCard extends StatelessWidget {
   final TextEditingController notesController;
   final double draftTotal;
   final NumberFormat currency;
-  final void Function(int index, int quantity) onUpdateQuantity;
   final bool compact;
 
   @override
@@ -737,6 +734,11 @@ class _OrderSummaryCard extends StatelessWidget {
                                 ),
                               ),
                             ],
+                            if (displayOrderItemNotes(entry.value.notes) !=
+                                null) ...[
+                              const SizedBox(height: 4),
+                              Text(displayOrderItemNotes(entry.value.notes)!),
+                            ],
                             const SizedBox(height: 4),
                             Text(
                               entry.value.removedIngredients.isEmpty
@@ -760,30 +762,19 @@ class _OrderSummaryCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Column(
-                        children: [
-                          IconButton(
-                            visualDensity: VisualDensity.compact,
-                            constraints: const BoxConstraints(),
-                            onPressed: () => onUpdateQuantity(
-                              entry.key,
-                              entry.value.quantity + 1,
-                            ),
-                            icon: const Icon(Icons.add_circle_outline),
-                          ),
-                          const SizedBox(height: 6),
-                          Text('${entry.value.quantity}'),
-                          const SizedBox(height: 6),
-                          IconButton(
-                            visualDensity: VisualDensity.compact,
-                            constraints: const BoxConstraints(),
-                            onPressed: () => onUpdateQuantity(
-                              entry.key,
-                              entry.value.quantity - 1,
-                            ),
-                            icon: const Icon(Icons.remove_circle_outline),
-                          ),
-                        ],
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 10,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.surface,
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          '${entry.value.quantity}',
+                          style: Theme.of(context).textTheme.titleSmall,
+                        ),
                       ),
                     ],
                   ),
@@ -880,6 +871,49 @@ class _SaveOrderBar extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
         child: bar,
       ),
+    );
+  }
+}
+
+class _ConfirmOrderDialog extends StatelessWidget {
+  const _ConfirmOrderDialog({
+    required this.draftItems,
+    required this.notesController,
+    required this.draftTotal,
+    required this.currency,
+  });
+
+  final List<OrderDraftItem> draftItems;
+  final TextEditingController notesController;
+  final double draftTotal;
+  final NumberFormat currency;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Confirmar comanda'),
+      content: SizedBox(
+        width: 420,
+        child: SingleChildScrollView(
+          child: _OrderSummaryCard(
+            draftItems: draftItems,
+            notesController: notesController,
+            draftTotal: draftTotal,
+            currency: currency,
+            compact: true,
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(true),
+          child: const Text('Guardar comanda'),
+        ),
+      ],
     );
   }
 }
@@ -1058,14 +1092,19 @@ class _OrdersQueue extends ConsumerWidget {
                                                   fontWeight: FontWeight.w800,
                                                 ),
                                               ),
-                                              if (item.notes != null)
+                                              if (displayOrderItemNotes(
+                                                    item.notes,
+                                                  ) !=
+                                                  null)
                                                 Padding(
                                                   padding:
                                                       const EdgeInsets.only(
                                                         top: 4,
                                                       ),
                                                   child: Text(
-                                                    item.notes!,
+                                                    displayOrderItemNotes(
+                                                      item.notes,
+                                                    )!,
                                                     style: TextStyle(
                                                       color: scheme
                                                           .onPrimaryContainer,
@@ -1224,23 +1263,48 @@ Future<List<String>> _showCustomizationDialog(
           width: 360,
           child: Column(
             mainAxisSize: MainAxisSize.min,
-            children: ingredientNames
-                .map(
-                  (name) => CheckboxListTile(
-                    value: selected.contains(name),
-                    title: Text('Quitar $name'),
-                    onChanged: (value) {
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Quitar ingredientes',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: ingredientNames.map((name) {
+                  final removed = selected.contains(name);
+                  return FilterChip(
+                    label: Text(
+                      name,
+                      style: TextStyle(
+                        decoration: removed
+                            ? TextDecoration.lineThrough
+                            : TextDecoration.none,
+                        fontWeight: removed ? FontWeight.w700 : FontWeight.w500,
+                      ),
+                    ),
+                    avatar: Icon(
+                      removed
+                          ? Icons.remove_circle_outline_rounded
+                          : Icons.add_task_rounded,
+                      size: 16,
+                    ),
+                    selected: removed,
+                    onSelected: (value) {
                       setState(() {
-                        if (value ?? false) {
+                        if (value) {
                           selected.add(name);
                         } else {
                           selected.remove(name);
                         }
                       });
                     },
-                  ),
-                )
-                .toList(),
+                  );
+                }).toList(),
+              ),
+            ],
           ),
         ),
         actions: [
@@ -1250,11 +1314,80 @@ Future<List<String>> _showCustomizationDialog(
           ),
           FilledButton(
             onPressed: () => Navigator.of(context).pop(selected.toList()),
-            child: const Text('Guardar cambios'),
+            child: const Text('Siguiente'),
           ),
         ],
       ),
     ),
   );
   return result ?? const <String>[];
+}
+
+Future<dynamic> _showExtraSelectionDialog(
+  BuildContext context,
+  List<dynamic> extras, {
+  required String productName,
+  String? comboLabel,
+}) async {
+  if (extras.isEmpty) return null;
+
+  dynamic selectedExtra;
+  return showDialog<dynamic>(
+    context: context,
+    builder: (context) => StatefulBuilder(
+      builder: (context, setState) => AlertDialog(
+        title: Text(
+          comboLabel == null
+              ? 'Extra para $productName'
+              : '$comboLabel · Extra',
+        ),
+        content: SizedBox(
+          width: 360,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Sin extra'),
+                leading: Icon(
+                  selectedExtra == null
+                      ? Icons.radio_button_checked_rounded
+                      : Icons.radio_button_off_rounded,
+                ),
+                onTap: () => setState(() => selectedExtra = null),
+              ),
+              const SizedBox(height: 4),
+              for (final extra in extras)
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text(extra.name),
+                  subtitle: Text(
+                    NumberFormat.currency(
+                      locale: 'es_MX',
+                      symbol: r'$',
+                    ).format(extra.salePrice),
+                  ),
+                  leading: Icon(
+                    identical(selectedExtra, extra)
+                        ? Icons.radio_button_checked_rounded
+                        : Icons.radio_button_off_rounded,
+                  ),
+                  onTap: () => setState(() => selectedExtra = extra),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(null),
+            child: const Text('Omitir'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(context).pop(selectedExtra),
+            child: const Text('Agregar'),
+          ),
+        ],
+      ),
+    ),
+  );
 }
