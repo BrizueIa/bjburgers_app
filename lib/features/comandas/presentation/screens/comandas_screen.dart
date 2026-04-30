@@ -323,14 +323,14 @@ class _CommandComposer extends StatelessWidget {
                     onTap: () => onAddProduct(product),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: 12,
-                        vertical: 10,
+                        horizontal: 14,
+                        vertical: 12,
                       ),
                       child: Row(
                         children: [
                           Container(
-                            width: 34,
-                            height: 34,
+                            width: 38,
+                            height: 38,
                             decoration: BoxDecoration(
                               borderRadius: BorderRadius.circular(10),
                               color: color,
@@ -338,30 +338,30 @@ class _CommandComposer extends StatelessWidget {
                             alignment: Alignment.center,
                             child: Icon(
                               icon,
-                              size: 18,
+                              size: 20,
                               color: color == scheme.secondaryContainer
                                   ? scheme.onSecondaryContainer
                                   : scheme.onPrimaryContainer,
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 12),
                           Expanded(
                             child: Text(
                               product.name,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleSmall,
+                              style: Theme.of(context).textTheme.titleMedium,
                             ),
                           ),
-                          const SizedBox(width: 10),
+                          const SizedBox(width: 12),
                           Text(
                             currency.format(product.salePrice),
-                            style: Theme.of(context).textTheme.titleSmall,
+                            style: Theme.of(context).textTheme.titleMedium,
                           ),
-                          const SizedBox(width: 6),
+                          const SizedBox(width: 8),
                           Icon(
                             Icons.add_circle_outline_rounded,
-                            size: 20,
+                            size: 22,
                             color: scheme.onSurfaceVariant,
                           ),
                         ],
