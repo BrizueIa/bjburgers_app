@@ -199,18 +199,21 @@ class _PurchaseDialogState extends ConsumerState<_PurchaseDialog> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              DropdownButtonFormField<String>(
-                initialValue: _ingredientId,
-                decoration: const InputDecoration(labelText: 'Ingrediente'),
-                items: widget.ingredients
-                    .map<DropdownMenuItem<String>>(
-                      (ingredient) => DropdownMenuItem<String>(
-                        value: ingredient.id,
-                        child: Text(ingredient.name),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) => setState(() => _ingredientId = value),
+              _IngredientSelectorField(
+                selectedIngredient: selectedIngredient,
+                onTap: () async {
+                  final selected = await showModalBottomSheet<Ingredient>(
+                    context: context,
+                    isScrollControlled: true,
+                    showDragHandle: true,
+                    builder: (_) => _IngredientSelectionSheet(
+                      ingredients: widget.ingredients,
+                      selectedIngredientId: _ingredientId,
+                    ),
+                  );
+                  if (!mounted || selected == null) return;
+                  setState(() => _ingredientId = selected.id);
+                },
               ),
               const SizedBox(height: 12),
               Row(
@@ -333,6 +336,155 @@ class _PurchaseDialogState extends ConsumerState<_PurchaseDialog> {
           child: const Text('Guardar compra'),
         ),
       ],
+    );
+  }
+}
+
+class _IngredientSelectorField extends StatelessWidget {
+  const _IngredientSelectorField({
+    required this.selectedIngredient,
+    required this.onTap,
+  });
+
+  final Ingredient? selectedIngredient;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(14),
+      onTap: onTap,
+      child: Ink(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: const Color(0xFFFFFCF8),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: scheme.outlineVariant),
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 34,
+              height: 34,
+              decoration: BoxDecoration(
+                color: scheme.primaryContainer,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: Icon(
+                Icons.inventory_2_rounded,
+                size: 18,
+                color: scheme.onPrimaryContainer,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Ingrediente',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    selectedIngredient?.name ?? 'Seleccionar ingrediente',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.titleMedium,
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.expand_more_rounded, color: scheme.onSurfaceVariant),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _IngredientSelectionSheet extends StatefulWidget {
+  const _IngredientSelectionSheet({
+    required this.ingredients,
+    required this.selectedIngredientId,
+  });
+
+  final List<Ingredient> ingredients;
+  final String? selectedIngredientId;
+
+  @override
+  State<_IngredientSelectionSheet> createState() =>
+      _IngredientSelectionSheetState();
+}
+
+class _IngredientSelectionSheetState extends State<_IngredientSelectionSheet> {
+  final TextEditingController _searchController = TextEditingController();
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final query = _searchController.text.trim().toLowerCase();
+    final filtered = widget.ingredients.where((ingredient) {
+      if (query.isEmpty) return true;
+      return ingredient.name.toLowerCase().contains(query);
+    }).toList();
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          8,
+          16,
+          16 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _searchController,
+              decoration: const InputDecoration(
+                labelText: 'Buscar ingrediente',
+                prefixIcon: Icon(Icons.search_rounded),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+            const SizedBox(height: 12),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: filtered.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 6),
+                itemBuilder: (context, index) {
+                  final ingredient = filtered[index];
+                  final selected = ingredient.id == widget.selectedIngredientId;
+
+                  return Card(
+                    color: selected
+                        ? Theme.of(context).colorScheme.primaryContainer
+                        : null,
+                    child: ListTile(
+                      title: Text(ingredient.name),
+                      subtitle: Text(ingredient.unitName),
+                      trailing: selected
+                          ? const Icon(Icons.check_rounded)
+                          : null,
+                      onTap: () => Navigator.of(context).pop(ingredient),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
