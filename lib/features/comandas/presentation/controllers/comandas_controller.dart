@@ -6,8 +6,8 @@ final sellableProductsProvider = StreamProvider((ref) {
   return ref.watch(comandasRepositoryProvider).watchSellableProducts();
 });
 
-final ordersProvider = StreamProvider((ref) {
-  return ref.watch(comandasRepositoryProvider).watchOrders();
+final todaysOrdersProvider = StreamProvider((ref) {
+  return ref.watch(comandasRepositoryProvider).watchTodayOrders();
 });
 
 final orderItemsProvider = StreamProvider.family((ref, String orderId) {

@@ -2,71 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../app/widgets/ui_cards.dart';
+import '../../../../core/storage/promo_config.dart';
 import '../../../../core/storage/app_settings_controller.dart';
 import '../../../../core/sync/sync_status_controller.dart';
 import '../../data/comandas_repository.dart';
 import '../controllers/comandas_controller.dart';
-
-class _PromoPreset {
-  const _PromoPreset({
-    required this.title,
-    required this.dayLabel,
-    required this.totalPrice,
-    required this.description,
-    required this.count,
-    this.fixedProductName,
-    this.selectableProductNames = const [],
-  });
-
-  final String title;
-  final String dayLabel;
-  final double totalPrice;
-  final String description;
-  final int count;
-  final String? fixedProductName;
-  final List<String> selectableProductNames;
-
-  bool get needsSelection => selectableProductNames.isNotEmpty;
-}
-
-const _promoPresets = [
-  _PromoPreset(
-    title: 'Promo Jueves',
-    dayLabel: 'Jueves',
-    totalPrice: 100,
-    description: '2 Clasicas por 100',
-    count: 2,
-    fixedProductName: 'Clasica',
-  ),
-  _PromoPreset(
-    title: 'Promo Viernes',
-    dayLabel: 'Viernes',
-    totalPrice: 100,
-    description: '2 hot dogs a eleccion por 100',
-    count: 2,
-    selectableProductNames: [
-      'Hot Dog Clasico',
-      'Salchi-Dog',
-      'Hot Dog Jack Daniels',
-    ],
-  ),
-  _PromoPreset(
-    title: 'Promo Sabado',
-    dayLabel: 'Sabado',
-    totalPrice: 69,
-    description: 'Salchiburger a precio de Clasica',
-    count: 1,
-    fixedProductName: 'Salchiburger',
-  ),
-  _PromoPreset(
-    title: 'Promo Domingo',
-    dayLabel: 'Domingo',
-    totalPrice: 125,
-    description: '2 Hawaianas por 125',
-    count: 2,
-    fixedProductName: 'Hawaiana',
-  ),
-];
 
 class ComandasScreen extends ConsumerStatefulWidget {
   const ComandasScreen({super.key});
@@ -82,6 +23,7 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
   Future<void> _addProductDraft(
     dynamic product, {
     String? comboLabel,
+    String? draftNote,
     double? overrideUnitPrice,
   }) async {
     final removedIngredients = product.productType == 'recipe'
@@ -103,31 +45,39 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
           baseCost: product.calculatedCost,
           quantity: 1,
           comboLabel: comboLabel,
-          notes: comboLabel,
+          notes: draftNote ?? comboLabel,
           removedIngredients: removedIngredients,
         ),
       );
     });
   }
 
-  Future<void> _addPromotion(_PromoPreset promo, List<dynamic> products) async {
+  Future<void> _addPromotion(PromoConfig promo, List<dynamic> products) async {
     final selectedProducts = <dynamic>[];
 
-    if (promo.needsSelection) {
-      final result = await _showPromoSelectionDialog(context, promo, products);
-      if (!mounted || result == null || result.length != promo.count) return;
-      selectedProducts.addAll(result);
-    } else {
+    for (final slot in promo.slots) {
+      if (slot.needsSelection) {
+        final result = await _showPromoSelectionDialog(
+          context,
+          promo,
+          slot,
+          products,
+        );
+        if (!mounted || result == null) return;
+        selectedProducts.add(result);
+        continue;
+      }
+
       final product = products
-          .where((item) => item.name == promo.fixedProductName)
+          .where((item) => item.name == slot.fixedProductName)
           .firstOrNull;
       if (product == null) return;
-      for (var i = 0; i < promo.count; i++) {
-        selectedProducts.add(product);
-      }
+      selectedProducts.add(product);
     }
 
-    final unitPrice = promo.totalPrice / promo.count;
+    if (selectedProducts.isEmpty) return;
+
+    final unitPrice = promo.totalPrice / selectedProducts.length;
     for (var i = 0; i < selectedProducts.length; i++) {
       final itemLabel = selectedProducts.length > 1
           ? '${promo.title} · ${i + 1}/${selectedProducts.length}'
@@ -135,6 +85,7 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
       await _addProductDraft(
         selectedProducts[i],
         comboLabel: itemLabel,
+        draftNote: 'Promo ${promo.title} · ${i + 1}/${selectedProducts.length}',
         overrideUnitPrice: unitPrice,
       );
     }
@@ -154,16 +105,16 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
   @override
   Widget build(BuildContext context) {
     final productsAsync = ref.watch(sellableProductsProvider);
-    final ordersAsync = ref.watch(ordersProvider);
+    final ordersAsync = ref.watch(todaysOrdersProvider);
     final settings = ref.watch(appSettingsProvider);
     final currency = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
 
     Future<void> refreshData() async {
       ref.invalidate(sellableProductsProvider);
-      ref.invalidate(ordersProvider);
+      ref.invalidate(todaysOrdersProvider);
       await ref.read(syncStatusProvider.notifier).synchronize();
       ref.invalidate(sellableProductsProvider);
-      ref.invalidate(ordersProvider);
+      ref.invalidate(todaysOrdersProvider);
     }
 
     return Scaffold(
@@ -202,7 +153,7 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
             draftTotal: _draftTotal,
             currency: currency,
             compact: !isWide,
-            promoPresets: _promoPresets,
+            promoPresets: settings.promoConfigs,
             onAddProduct: (product) async {
               await _addProductDraft(product);
             },
@@ -275,8 +226,9 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
             child: Column(
               children: [
                 const Padding(
-                  padding: EdgeInsets.fromLTRB(20, 12, 20, 0),
+                  padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
                   child: TabBar(
+                    dividerColor: Colors.transparent,
                     tabs: [
                       Tab(text: 'Nueva'),
                       Tab(text: 'Preparacion'),
@@ -321,370 +273,630 @@ class _CommandComposer extends StatelessWidget {
   final double draftTotal;
   final NumberFormat currency;
   final bool compact;
-  final List<_PromoPreset> promoPresets;
+  final List<PromoConfig> promoPresets;
   final Future<void> Function(dynamic product) onAddProduct;
-  final Future<void> Function(_PromoPreset promo, List<dynamic> products)
+  final Future<void> Function(PromoConfig promo, List<dynamic> products)
   onAddPromo;
   final void Function(int index, int quantity) onUpdateQuantity;
   final Future<void> Function() onSaveOrder;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
-      children: [
-        Text('Nueva comanda', style: Theme.of(context).textTheme.headlineSmall),
-        const SizedBox(height: 20),
-        productsAsync.when(
-          data: (products) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Promociones',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 12),
-              if (compact)
-                Column(
-                  children: [
-                    for (final promo in promoPresets)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 10),
-                        child: Card(
-                          clipBehavior: Clip.antiAlias,
-                          child: ListTile(
-                            leading: Container(
-                              width: 42,
-                              height: 42,
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(14),
-                                gradient: const LinearGradient(
-                                  colors: [
-                                    Color(0xFF7A2E12),
-                                    Color(0xFFF28C00),
-                                  ],
-                                ),
-                              ),
-                              alignment: Alignment.center,
-                              child: const Icon(
-                                Icons.local_offer_rounded,
-                                color: Colors.white,
-                              ),
-                            ),
-                            title: Text(promo.title),
-                            subtitle: Text(
-                              '${promo.description} · ${promo.dayLabel}',
-                            ),
-                            trailing: Text(
-                              currency.format(promo.totalPrice),
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(
-                                    color: const Color(0xFF7A2E12),
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                            ),
-                            onTap: () => onAddPromo(promo, products),
-                          ),
-                        ),
+    final totalItems = draftItems.fold<int>(
+      0,
+      (sum, item) => sum + item.quantity,
+    );
+
+    Widget buildCatalog(List<dynamic> products) {
+      final scheme = Theme.of(context).colorScheme;
+      final todaysPromos = promoPresets
+          .where((promo) => _matchesToday(promo.dayLabel))
+          .toList();
+      final simpleProducts = products
+          .where((item) => item.productType == 'simple')
+          .toList();
+      final recipeProducts = products
+          .where((item) => item.productType != 'simple')
+          .toList();
+
+      Widget buildQuickProductList(
+        String title,
+        List<dynamic> items,
+        IconData icon,
+        Color color,
+      ) {
+        if (items.isEmpty) return const SizedBox.shrink();
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(title, style: Theme.of(context).textTheme.titleSmall),
+            ),
+            for (final product in items)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => onAddProduct(product),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 10,
                       ),
-                  ],
-                )
-              else
-                Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    for (final promo in promoPresets)
-                      SizedBox(
-                        width: 240,
-                        child: Card(
-                          clipBehavior: Clip.antiAlias,
-                          child: InkWell(
-                            onTap: () => onAddPromo(promo, products),
-                            child: Padding(
-                              padding: const EdgeInsets.all(16),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Container(
-                                    width: 44,
-                                    height: 44,
-                                    decoration: BoxDecoration(
-                                      borderRadius: BorderRadius.circular(14),
-                                      gradient: const LinearGradient(
-                                        colors: [
-                                          Color(0xFF7A2E12),
-                                          Color(0xFFF28C00),
-                                        ],
-                                      ),
-                                    ),
-                                    alignment: Alignment.center,
-                                    child: const Icon(
-                                      Icons.local_offer_rounded,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Text(
-                                    promo.title,
-                                    style: Theme.of(
-                                      context,
-                                    ).textTheme.titleMedium,
-                                  ),
-                                  const SizedBox(height: 6),
-                                  Text(promo.description),
-                                  const SizedBox(height: 10),
-                                  Text(
-                                    currency.format(promo.totalPrice),
-                                    style: Theme.of(context)
-                                        .textTheme
-                                        .titleLarge
-                                        ?.copyWith(
-                                          color: const Color(0xFF7A2E12),
-                                        ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-              const SizedBox(height: 20),
-              Text('Productos', style: Theme.of(context).textTheme.titleLarge),
-              const SizedBox(height: 12),
-              compact
-                  ? Column(
-                      children: [
-                        for (final product in products)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Card(
-                              clipBehavior: Clip.antiAlias,
-                              child: ListTile(
-                                onTap: () => onAddProduct(product),
-                                leading: Container(
-                                  width: 42,
-                                  height: 42,
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(14),
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFFFFC14D),
-                                        Color(0xFFF28C00),
-                                      ],
-                                    ),
-                                  ),
-                                  alignment: Alignment.center,
-                                  child: Icon(
-                                    product.productType == 'simple'
-                                        ? Icons.local_drink_rounded
-                                        : Icons.lunch_dining_rounded,
-                                    color: const Color(0xFF1A1208),
-                                  ),
-                                ),
-                                title: Text(product.name),
-                                subtitle: Text(
-                                  product.productType == 'simple'
-                                      ? 'Simple'
-                                      : 'Con receta',
-                                ),
-                                trailing: Text(
-                                  currency.format(product.salePrice),
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(
-                                        color: const Color(0xFF7A2E12),
-                                        fontWeight: FontWeight.w800,
-                                      ),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    )
-                  : Wrap(
-                      spacing: 12,
-                      runSpacing: 12,
-                      children: [
-                        for (final product in products)
-                          SizedBox(
-                            width: 200,
-                            child: Card(
-                              clipBehavior: Clip.antiAlias,
-                              child: InkWell(
-                                borderRadius: BorderRadius.circular(24),
-                                onTap: () => onAddProduct(product),
-                                child: Padding(
-                                  padding: const EdgeInsets.all(16),
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Container(
-                                        width: 40,
-                                        height: 40,
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(
-                                            14,
-                                          ),
-                                          gradient: const LinearGradient(
-                                            colors: [
-                                              Color(0xFFFFC14D),
-                                              Color(0xFFF28C00),
-                                            ],
-                                          ),
-                                        ),
-                                        alignment: Alignment.center,
-                                        child: Icon(
-                                          product.productType == 'simple'
-                                              ? Icons.local_drink_rounded
-                                              : Icons.lunch_dining_rounded,
-                                          color: const Color(0xFF1A1208),
-                                        ),
-                                      ),
-                                      const SizedBox(height: 12),
-                                      Text(
-                                        product.name,
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.titleMedium,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        product.productType == 'simple'
-                                            ? 'Simple'
-                                            : 'Con receta',
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        currency.format(product.salePrice),
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .titleLarge
-                                            ?.copyWith(
-                                              color: const Color(0xFF7A2E12),
-                                            ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-            ],
-          ),
-          loading: () => const Center(child: CircularProgressIndicator()),
-          error: (error, stackTrace) => Text('$error'),
-        ),
-        const SizedBox(height: 24),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Resumen', style: Theme.of(context).textTheme.titleLarge),
-                const SizedBox(height: 12),
-                if (draftItems.isEmpty)
-                  const Text('Agrega productos para formar la comanda.')
-                else
-                  ...draftItems.asMap().entries.map(
-                    (entry) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: Text(entry.value.productName),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
+                      child: Row(
                         children: [
-                          if (entry.value.comboLabel != null)
-                            Text(
-                              entry.value.comboLabel!,
-                              style: const TextStyle(
-                                color: Color(0xFF7A2E12),
-                                fontWeight: FontWeight.w700,
-                              ),
+                          Container(
+                            width: 34,
+                            height: 34,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(10),
+                              color: color,
                             ),
+                            alignment: Alignment.center,
+                            child: Icon(
+                              icon,
+                              size: 18,
+                              color: color == scheme.secondaryContainer
+                                  ? scheme.onSecondaryContainer
+                                  : scheme.onPrimaryContainer,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              product.name,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
                           Text(
-                            entry.value.removedIngredients.isEmpty
-                                ? 'Sin cambios'
-                                : 'Sin: ${entry.value.removedIngredients.join(', ')}',
+                            currency.format(product.salePrice),
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                          const SizedBox(width: 6),
+                          Icon(
+                            Icons.add_circle_outline_rounded,
+                            size: 20,
+                            color: scheme.onSurfaceVariant,
                           ),
                         ],
                       ),
-                      leading: CircleAvatar(
-                        backgroundColor: const Color(0xFFFFD27A),
-                        foregroundColor: const Color(0xFF1A1208),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      }
+
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppSectionCard(
+            title: 'Promociones',
+            child: todaysPromos.isEmpty
+                ? const Text('Sin promo hoy')
+                : compact
+                ? SizedBox(
+                    height: 96,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: todaysPromos.length,
+                      separatorBuilder: (_, __) => const SizedBox(width: 8),
+                      itemBuilder: (context, index) {
+                        final promo = todaysPromos[index];
+                        return SizedBox(
+                          width: 168,
+                          child: Card(
+                            clipBehavior: Clip.antiAlias,
+                            child: InkWell(
+                              onTap: () => onAddPromo(promo, products),
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      promo.dayLabel.toUpperCase(),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .labelMedium
+                                          ?.copyWith(
+                                            color: scheme.onSurfaceVariant,
+                                          ),
+                                    ),
+                                    const Spacer(),
+                                    Text(
+                                      promo.title,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleSmall,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      currency.format(promo.totalPrice),
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  )
+                : Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final promo in todaysPromos)
+                        SizedBox(
+                          width: 240,
+                          child: Card(
+                            clipBehavior: Clip.antiAlias,
+                            child: InkWell(
+                              onTap: () => onAddPromo(promo, products),
+                              child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      width: 38,
+                                      height: 38,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(10),
+                                        color: const Color(0xFFF6D3A3),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: const Icon(
+                                        Icons.local_offer_rounded,
+                                        color: Color(0xFF7A2E12),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      promo.title,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                    const SizedBox(height: 6),
+                                    Text(promo.description),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      currency.format(promo.totalPrice),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            color: const Color(0xFF7A2E12),
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+          const SizedBox(height: 16),
+          AppSectionCard(
+            title: 'Productos',
+            child: compact
+                ? Column(
+                    children: [
+                      buildQuickProductList(
+                        'Con receta',
+                        recipeProducts,
+                        Icons.lunch_dining_rounded,
+                        scheme.secondaryContainer,
+                      ),
+                      buildQuickProductList(
+                        'Simples',
+                        simpleProducts,
+                        Icons.local_drink_rounded,
+                        scheme.primaryContainer,
+                      ),
+                    ],
+                  )
+                : Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      for (final product in products)
+                        SizedBox(
+                          width: 200,
+                          child: Card(
+                            clipBehavior: Clip.antiAlias,
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () => onAddProduct(product),
+                              child: Padding(
+                                padding: const EdgeInsets.all(14),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Container(
+                                      width: 36,
+                                      height: 36,
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(10),
+                                        color: const Color(0xFFFFE2B0),
+                                      ),
+                                      alignment: Alignment.center,
+                                      child: Icon(
+                                        product.productType == 'simple'
+                                            ? Icons.local_drink_rounded
+                                            : Icons.lunch_dining_rounded,
+                                        color: const Color(0xFF1A1208),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 10),
+                                    Text(
+                                      product.name,
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.titleMedium,
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      product.productType == 'simple'
+                                          ? 'Simple'
+                                          : 'Con receta',
+                                    ),
+                                    const SizedBox(height: 8),
+                                    Text(
+                                      currency.format(product.salePrice),
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleLarge
+                                          ?.copyWith(
+                                            color: const Color(0xFF7A2E12),
+                                          ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+          ),
+        ],
+      );
+    }
+
+    final summaryCard = _OrderSummaryCard(
+      draftItems: draftItems,
+      notesController: notesController,
+      draftTotal: draftTotal,
+      currency: currency,
+      onUpdateQuantity: onUpdateQuantity,
+      compact: compact,
+    );
+
+    return productsAsync.when(
+      data: (products) {
+        if (compact) {
+          return Stack(
+            children: [
+              ListView(
+                padding: const EdgeInsets.fromLTRB(16, 16, 16, 104),
+                children: [
+                  buildCatalog(products),
+                  const SizedBox(height: 12),
+                  summaryCard,
+                ],
+              ),
+              Align(
+                alignment: Alignment.bottomCenter,
+                child: _SaveOrderBar(
+                  totalItems: totalItems,
+                  draftTotal: draftTotal,
+                  currency: currency,
+                  onSaveOrder: draftItems.isEmpty ? null : onSaveOrder,
+                ),
+              ),
+            ],
+          );
+        }
+
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
+          children: [
+            Text(
+              'Nueva comanda',
+              style: Theme.of(context).textTheme.headlineSmall,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(flex: 7, child: buildCatalog(products)),
+                const SizedBox(width: 16),
+                Expanded(
+                  flex: 4,
+                  child: Column(
+                    children: [
+                      summaryCard,
+                      const SizedBox(height: 12),
+                      _SaveOrderBar(
+                        totalItems: totalItems,
+                        draftTotal: draftTotal,
+                        currency: currency,
+                        onSaveOrder: draftItems.isEmpty ? null : onSaveOrder,
+                        compact: false,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stackTrace) => Center(child: Text('$error')),
+    );
+  }
+}
+
+class _OrderSummaryCard extends StatelessWidget {
+  const _OrderSummaryCard({
+    required this.draftItems,
+    required this.notesController,
+    required this.draftTotal,
+    required this.currency,
+    required this.onUpdateQuantity,
+    required this.compact,
+  });
+
+  final List<OrderDraftItem> draftItems;
+  final TextEditingController notesController;
+  final double draftTotal;
+  final NumberFormat currency;
+  final void Function(int index, int quantity) onUpdateQuantity;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Resumen', style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: 12),
+            if (draftItems.isEmpty)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text('Agrega productos para formar la comanda.'),
+              )
+            else
+              ...draftItems.asMap().entries.map(
+                (entry) => Container(
+                  margin: const EdgeInsets.only(bottom: 8),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(context).colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      CircleAvatar(
+                        backgroundColor: Theme.of(context).colorScheme.surface,
+                        foregroundColor: Theme.of(
+                          context,
+                        ).colorScheme.onSurface,
                         child: Text('${entry.value.quantity}'),
                       ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              entry.value.productName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w800,
+                              ),
+                            ),
+                            if (entry.value.comboLabel != null) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                entry.value.comboLabel!,
+                                style: TextStyle(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onPrimaryContainer,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                            ],
+                            const SizedBox(height: 4),
+                            Text(
+                              entry.value.removedIngredients.isEmpty
+                                  ? 'Sin cambios'
+                                  : 'Sin: ${entry.value.removedIngredients.join(', ')}',
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              currency.format(
+                                entry.value.unitPrice * entry.value.quantity,
+                              ),
+                              style: Theme.of(context).textTheme.titleSmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onPrimaryContainer,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Column(
                         children: [
                           IconButton(
-                            onPressed: () => onUpdateQuantity(
-                              entry.key,
-                              entry.value.quantity - 1,
-                            ),
-                            icon: const Icon(Icons.remove_circle_outline),
-                          ),
-                          Text('${entry.value.quantity}'),
-                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints(),
                             onPressed: () => onUpdateQuantity(
                               entry.key,
                               entry.value.quantity + 1,
                             ),
                             icon: const Icon(Icons.add_circle_outline),
                           ),
+                          const SizedBox(height: 6),
+                          Text('${entry.value.quantity}'),
+                          const SizedBox(height: 6),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            constraints: const BoxConstraints(),
+                            onPressed: () => onUpdateQuantity(
+                              entry.key,
+                              entry.value.quantity - 1,
+                            ),
+                            icon: const Icon(Icons.remove_circle_outline),
+                          ),
                         ],
                       ),
-                    ),
-                  ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: notesController,
-                  minLines: 2,
-                  maxLines: 3,
-                  decoration: const InputDecoration(
-                    labelText: 'Notas generales de la comanda',
+                    ],
                   ),
                 ),
-                const SizedBox(height: 16),
-                Text('Total estimado: ${currency.format(draftTotal)}'),
-                const SizedBox(height: 16),
-                FilledButton.icon(
-                  onPressed: draftItems.isEmpty ? null : onSaveOrder,
-                  icon: const Icon(Icons.playlist_add_check_circle_rounded),
-                  label: const Text('Guardar comanda'),
+              ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: notesController,
+              minLines: compact ? 2 : 3,
+              maxLines: compact ? 3 : 4,
+              decoration: const InputDecoration(
+                labelText: 'Notas generales de la comanda',
+                alignLabelWithHint: true,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Total'),
+                Text(
+                  currency.format(draftTotal),
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-                if (compact) ...[
-                  const SizedBox(height: 10),
-                  const Text(
-                    'Tip: usa la pestaña Preparacion para ver la cola completa mientras cocinas.',
-                  ),
-                ],
               ],
             ),
-          ),
+          ],
         ),
-      ],
+      ),
     );
   }
 }
 
-Future<List<dynamic>?> _showPromoSelectionDialog(
+class _SaveOrderBar extends StatelessWidget {
+  const _SaveOrderBar({
+    required this.totalItems,
+    required this.draftTotal,
+    required this.currency,
+    required this.onSaveOrder,
+    this.compact = true,
+  });
+
+  final int totalItems;
+  final double draftTotal;
+  final NumberFormat currency;
+  final Future<void> Function()? onSaveOrder;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final bar = Material(
+      elevation: compact ? 8 : 0,
+      borderRadius: BorderRadius.circular(14),
+      color: Theme.of(context).colorScheme.surface,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    '$totalItems item(s)',
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    currency.format(draftTotal),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            FilledButton.icon(
+              onPressed: onSaveOrder,
+              icon: const Icon(Icons.playlist_add_check_circle_rounded),
+              label: const Text('Guardar comanda'),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (!compact) return bar;
+
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
+        child: bar,
+      ),
+    );
+  }
+}
+
+Future<dynamic> _showPromoSelectionDialog(
   BuildContext context,
-  _PromoPreset promo,
+  PromoConfig promo,
+  PromoProductSlotConfig slot,
   List<dynamic> products,
 ) async {
   final selectable = products
-      .where((product) => promo.selectableProductNames.contains(product.name))
+      .where((product) => slot.selectableProductNames.contains(product.name))
       .toList();
   if (selectable.isEmpty) return null;
 
-  final selected = List<dynamic>.filled(promo.count, selectable.first);
-  return showDialog<List<dynamic>>(
+  dynamic selected = selectable.first;
+  return showDialog<dynamic>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
@@ -696,24 +908,21 @@ Future<List<dynamic>?> _showPromoSelectionDialog(
             children: [
               Text(promo.description),
               const SizedBox(height: 16),
-              for (var i = 0; i < promo.count; i++) ...[
-                DropdownButtonFormField<dynamic>(
-                  initialValue: selected[i],
-                  decoration: InputDecoration(labelText: 'Producto ${i + 1}'),
-                  items: selectable
-                      .map<DropdownMenuItem<dynamic>>(
-                        (product) => DropdownMenuItem<dynamic>(
-                          value: product,
-                          child: Text(product.name),
-                        ),
-                      )
-                      .toList(),
-                  onChanged: (value) {
-                    setState(() => selected[i] = value);
-                  },
-                ),
-                const SizedBox(height: 12),
-              ],
+              DropdownButtonFormField<dynamic>(
+                initialValue: selected,
+                decoration: const InputDecoration(labelText: 'Producto'),
+                items: selectable
+                    .map<DropdownMenuItem<dynamic>>(
+                      (product) => DropdownMenuItem<dynamic>(
+                        value: product,
+                        child: Text(product.name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  setState(() => selected = value);
+                },
+              ),
             ],
           ),
         ),
@@ -724,8 +933,8 @@ Future<List<dynamic>?> _showPromoSelectionDialog(
           ),
           FilledButton(
             onPressed: () {
-              if (selected.any((item) => item == null)) return;
-              Navigator.of(context).pop(selected.cast<dynamic>());
+              if (selected == null) return;
+              Navigator.of(context).pop(selected);
             },
             child: const Text('Continuar'),
           ),
@@ -746,22 +955,21 @@ class _OrdersQueue extends ConsumerWidget {
     return ordersAsync.when(
       data: (orders) {
         if (orders.isEmpty) {
-          return const Center(
-            child: Text('No hay comandas registradas todavia.'),
-          );
+          return const Center(child: Text('No hay comandas registradas hoy.'));
         }
 
         return ListView.separated(
           physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           itemCount: orders.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          separatorBuilder: (_, __) => const SizedBox(height: 8),
           itemBuilder: (context, index) {
             final order = orders[index];
             final accent = _statusAccent(order.status);
+            final scheme = Theme.of(context).colorScheme;
             return Card(
               child: Padding(
-                padding: const EdgeInsets.all(20),
+                padding: const EdgeInsets.all(14),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -769,14 +977,14 @@ class _OrdersQueue extends ConsumerWidget {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Container(
-                          width: 12,
-                          height: 72,
+                          width: 6,
+                          height: 50,
                           decoration: BoxDecoration(
                             color: accent,
                             borderRadius: BorderRadius.circular(999),
                           ),
                         ),
-                        const SizedBox(width: 14),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -788,16 +996,16 @@ class _OrdersQueue extends ConsumerWidget {
                                       order.orderNumber,
                                       style: Theme.of(
                                         context,
-                                      ).textTheme.titleLarge,
+                                      ).textTheme.titleMedium,
                                     ),
                                   ),
                                   Chip(label: Text(_statusLabel(order.status))),
                                 ],
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 4),
                               Text(
                                 '${order.itemCount} productos · ${currency.format(order.totalEstimated)}',
-                                style: Theme.of(context).textTheme.bodyLarge,
+                                style: Theme.of(context).textTheme.bodyMedium,
                               ),
                               if (order.notes != null) ...[
                                 const SizedBox(height: 10),
@@ -808,7 +1016,7 @@ class _OrdersQueue extends ConsumerWidget {
                         ),
                       ],
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     Consumer(
                       builder: (context, ref, child) {
                         final itemsAsync = ref.watch(
@@ -819,13 +1027,13 @@ class _OrdersQueue extends ConsumerWidget {
                             children: items
                                 .map(
                                   (item) => Container(
-                                    margin: const EdgeInsets.only(bottom: 10),
-                                    padding: const EdgeInsets.all(14),
+                                    margin: const EdgeInsets.only(bottom: 8),
+                                    padding: const EdgeInsets.all(10),
                                     decoration: BoxDecoration(
-                                      color: const Color(0xFFFFF6EA),
-                                      borderRadius: BorderRadius.circular(20),
+                                      color: scheme.primaryContainer,
+                                      borderRadius: BorderRadius.circular(12),
                                       border: Border.all(
-                                        color: const Color(0xFFEACBA4),
+                                        color: scheme.outlineVariant,
                                       ),
                                     ),
                                     child: Row(
@@ -833,16 +1041,12 @@ class _OrdersQueue extends ConsumerWidget {
                                           CrossAxisAlignment.start,
                                       children: [
                                         CircleAvatar(
-                                          radius: 18,
-                                          backgroundColor: const Color(
-                                            0xFFFFC14D,
-                                          ),
-                                          foregroundColor: const Color(
-                                            0xFF1A1208,
-                                          ),
+                                          radius: 16,
+                                          backgroundColor: scheme.surface,
+                                          foregroundColor: scheme.onSurface,
                                           child: Text('${item.quantity}'),
                                         ),
-                                        const SizedBox(width: 12),
+                                        const SizedBox(width: 10),
                                         Expanded(
                                           child: Column(
                                             crossAxisAlignment:
@@ -862,8 +1066,9 @@ class _OrdersQueue extends ConsumerWidget {
                                                       ),
                                                   child: Text(
                                                     item.notes!,
-                                                    style: const TextStyle(
-                                                      color: Color(0xFF7A2E12),
+                                                    style: TextStyle(
+                                                      color: scheme
+                                                          .onPrimaryContainer,
                                                       fontWeight:
                                                           FontWeight.w700,
                                                     ),
@@ -879,8 +1084,9 @@ class _OrdersQueue extends ConsumerWidget {
                                                       ),
                                                   child: Text(
                                                     'Sin: ${item.removedIngredients.join(', ')}',
-                                                    style: const TextStyle(
-                                                      color: Color(0xFF7A2E12),
+                                                    style: TextStyle(
+                                                      color: scheme
+                                                          .onPrimaryContainer,
                                                     ),
                                                   ),
                                                 ),
@@ -901,7 +1107,7 @@ class _OrdersQueue extends ConsumerWidget {
                         );
                       },
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 6),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
@@ -975,6 +1181,20 @@ String _statusLabel(String status) {
     default:
       return status;
   }
+}
+
+bool _matchesToday(String dayLabel) {
+  const weekdayLabels = {
+    1: 'Lunes',
+    2: 'Martes',
+    3: 'Miercoles',
+    4: 'Jueves',
+    5: 'Viernes',
+    6: 'Sabado',
+    7: 'Domingo',
+  };
+
+  return weekdayLabels[DateTime.now().weekday] == dayLabel;
 }
 
 Future<List<String>> _showCustomizationDialog(

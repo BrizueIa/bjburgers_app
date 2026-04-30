@@ -60,6 +60,7 @@ Este documento se actualiza durante el desarrollo para consultar el avance real 
 - Extender soft delete al resto de modulos segun necesidad operativa
 - Extender dashboard/reportes con filtros personalizados y mas detalle historico
 - Endurecer seguridad remota cuando exista una estrategia de identidad mas robusta
+- Siguiente paso UX: migrar `Inventario`, `Compras` y `Settings` al design system operativo mobile-first
 
 ## Backlog por fases
 

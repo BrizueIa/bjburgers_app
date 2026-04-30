@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:drift/drift.dart';
@@ -119,6 +120,38 @@ class ComandasRepository {
               )
               .toList(),
         );
+  }
+
+  Stream<List<OrderSummary>> watchTodayOrders() {
+    return Stream.multi((controller) {
+      var latestOrders = const <OrderSummary>[];
+
+      void emitTodayOrders() {
+        final now = DateTime.now();
+        controller.add(
+          latestOrders
+              .where((order) => _isSameLocalDate(order.createdAt, now))
+              .toList(),
+        );
+      }
+
+      final subscription = watchOrders().listen((orders) {
+        latestOrders = orders;
+        emitTodayOrders();
+      }, onError: controller.addError);
+
+      final timer = Timer.periodic(const Duration(minutes: 1), (_) {
+        emitTodayOrders();
+      });
+
+      controller
+        ..onPause = subscription.pause
+        ..onResume = subscription.resume
+        ..onCancel = () async {
+          timer.cancel();
+          await subscription.cancel();
+        };
+    });
   }
 
   Stream<List<OrderItemSummary>> watchOrderItems(String orderId) {
@@ -346,6 +379,12 @@ class ComandasRepository {
           }).toList(),
         );
   }
+}
+
+bool _isSameLocalDate(DateTime left, DateTime right) {
+  return left.year == right.year &&
+      left.month == right.month &&
+      left.day == right.day;
 }
 
 final comandasRepositoryProvider = Provider<ComandasRepository>((ref) {

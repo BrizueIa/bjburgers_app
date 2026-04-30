@@ -13,40 +13,26 @@ class AppShell extends StatelessWidget {
   Widget build(BuildContext context) {
     final destination = AppDestination.fromLocation(location);
     final isDesktop = MediaQuery.sizeOf(context).width >= 900;
+    final scheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [Color(0xFF120D08), Color(0xFF24140A), Color(0xFFF4EBDD)],
-            stops: [0, 0.28, 0.28],
-          ),
-        ),
-        child: SafeArea(
-          child: Row(
-            children: [
-              if (isDesktop) _DesktopNavigation(current: destination),
-              Expanded(
-                child: Container(
-                  margin: EdgeInsets.fromLTRB(isDesktop ? 0 : 12, 12, 12, 0),
-                  decoration: const BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [Color(0xFFFFF6EA), Color(0xFFF0E4D2)],
-                    ),
-                    borderRadius: BorderRadius.only(
-                      topLeft: Radius.circular(34),
-                      topRight: Radius.circular(34),
-                    ),
-                  ),
-                  child: child,
+      body: SafeArea(
+        child: Row(
+          children: [
+            if (isDesktop) _DesktopNavigation(current: destination),
+            Expanded(
+              child: Container(
+                margin: EdgeInsets.fromLTRB(isDesktop ? 0 : 10, 10, 10, 0),
+                decoration: BoxDecoration(
+                  color: scheme.surface,
+                  border: Border.all(color: scheme.outlineVariant),
+                  borderRadius: BorderRadius.circular(isDesktop ? 0 : 18),
                 ),
+                clipBehavior: Clip.antiAlias,
+                child: child,
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
       bottomNavigationBar: isDesktop
@@ -63,60 +49,35 @@ class _DesktopNavigation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Container(
-      color: const Color(0xFF1A1208),
-      width: 108,
-      padding: const EdgeInsets.fromLTRB(12, 20, 12, 18),
+      color: scheme.surface,
+      width: 96,
+      padding: const EdgeInsets.fromLTRB(10, 18, 10, 18),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(12),
+            width: 52,
+            height: 52,
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(26),
-              gradient: const LinearGradient(
-                colors: [Color(0xFFF7A30A), Color(0xFFCF5F0A)],
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-              ),
-              boxShadow: const [
-                BoxShadow(
-                  color: Color(0x552F1200),
-                  blurRadius: 18,
-                  offset: Offset(0, 10),
-                ),
-              ],
+              borderRadius: BorderRadius.circular(14),
+              color: scheme.primary,
             ),
-            child: Column(
-              children: [
-                Icon(Icons.local_fire_department_rounded, color: Colors.white),
-                SizedBox(height: 6),
-                Text(
-                  'B&J',
-                  style: TextStyle(
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ],
-            ),
+            child: const Icon(Icons.lunch_dining_rounded, color: Colors.white),
           ),
 
           const SizedBox(height: 18),
           for (final item in AppDestination.values)
             Padding(
-              padding: const EdgeInsets.only(bottom: 10),
+              padding: const EdgeInsets.only(bottom: 8),
               child: _NavTile(item: item, selected: item == current),
             ),
           const Spacer(),
-          const RotatedBox(
-            quarterTurns: 3,
-            child: Text(
-              'BJ BURGERS',
-              style: TextStyle(
-                fontWeight: FontWeight.w800,
-                letterSpacing: 2,
-                color: Color.fromARGB(255, 255, 255, 255),
-              ),
+          Text(
+            'BJ',
+            style: TextStyle(
+              color: scheme.onSurfaceVariant,
+              fontWeight: FontWeight.w800,
             ),
           ),
         ],
@@ -133,25 +94,26 @@ class _NavTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Material(
-      color: selected ? const Color(0xFFF28C00) : const Color(0x14FFFFFF),
-      borderRadius: BorderRadius.circular(22),
+      color: selected ? scheme.primaryContainer : Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
       child: InkWell(
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(14),
         onTap: () => context.go(item.route),
         child: SizedBox(
-          width: 84,
+          width: 76,
           child: Padding(
-            padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+            padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 6),
             child: Column(
               children: [
                 Icon(
                   item.icon,
                   color: selected
-                      ? const Color(0xFF1A1208)
-                      : const Color(0xFFF8E9D2),
+                      ? scheme.onPrimaryContainer
+                      : scheme.onSurfaceVariant,
                 ),
-                const SizedBox(height: 6),
+                const SizedBox(height: 4),
                 Text(
                   item.label,
                   textAlign: TextAlign.center,
@@ -159,8 +121,8 @@ class _NavTile extends StatelessWidget {
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     color: selected
-                        ? const Color(0xFF1A1208)
-                        : const Color(0xFFF8E9D2),
+                        ? scheme.onPrimaryContainer
+                        : scheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -191,6 +153,7 @@ class _MobileNavigation extends StatelessWidget {
     final resolvedIndex = selectedIndex < 0 ? 4 : selectedIndex;
 
     return NavigationBar(
+      elevation: 0,
       selectedIndex: resolvedIndex,
       onDestinationSelected: (index) {
         if (index == 4) {
@@ -199,7 +162,7 @@ class _MobileNavigation extends StatelessWidget {
             showDragHandle: true,
             builder: (context) => SafeArea(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 20),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,11 +170,11 @@ class _MobileNavigation extends StatelessWidget {
                     const Text(
                       'Mas vistas',
                       style: TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.w800,
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 8),
                     for (final item in const [
                       AppDestination.inventario,
                       AppDestination.compras,

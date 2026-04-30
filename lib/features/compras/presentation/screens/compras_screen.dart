@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../app/widgets/ui_cards.dart';
 import '../../../../core/admin/admin_mode_controller.dart';
 import '../../../../core/database/app_database.dart';
 import '../../data/purchases_repository.dart';
@@ -24,18 +25,13 @@ class ComprasScreen extends ConsumerWidget {
         title: const Text('Compras'),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 20),
+            padding: const EdgeInsets.only(right: 16),
             child: Center(
-              child: Chip(
-                avatar: Icon(
-                  admin.enabled
-                      ? Icons.shopping_cart_checkout_rounded
-                      : Icons.lock_outline_rounded,
-                  size: 18,
-                ),
-                label: Text(
-                  admin.enabled ? 'Registro habilitado' : 'Bloqueado por admin',
-                ),
+              child: Icon(
+                admin.enabled
+                    ? Icons.shopping_cart_checkout_rounded
+                    : Icons.lock_outline_rounded,
+                size: 20,
               ),
             ),
           ),
@@ -45,13 +41,7 @@ class ComprasScreen extends ConsumerWidget {
         data: (items) {
           if (items.isEmpty) {
             return const Center(
-              child: Padding(
-                padding: EdgeInsets.all(24),
-                child: Text(
-                  'Todavia no hay compras registradas. Empieza cargando una compra para actualizar costos actuales.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
+              child: Icon(Icons.shopping_basket_rounded, size: 36),
             );
           }
 
@@ -60,35 +50,38 @@ class ComprasScreen extends ConsumerWidget {
             (sum, item) => sum + item.purchase.totalCost,
           );
           return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
             children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      Chip(label: Text('Compras: ${items.length}')),
-                      Chip(
-                        label: Text(
-                          'Invertido: ${currency.format(totalSpent)}',
-                        ),
-                      ),
-                    ],
+              Row(
+                children: [
+                  Expanded(
+                    child: AppMiniStatCard(
+                      label: 'Compras',
+                      value: '${items.length}',
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: AppMiniStatCard(
+                      label: 'Invertido',
+                      value: currency.format(totalSpent),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               ...items.map(
                 (item) => Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.only(bottom: 8),
                   child: Card(
                     child: ListTile(
-                      contentPadding: const EdgeInsets.all(20),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 8,
+                      ),
                       title: Text(item.ingredientName),
                       subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.only(top: 6),
                         child: Wrap(
                           spacing: 8,
                           runSpacing: 8,

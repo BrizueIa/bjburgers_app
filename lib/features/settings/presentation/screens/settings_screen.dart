@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
+import '../../../../app/widgets/ui_cards.dart';
 import '../../../../core/admin/admin_mode_controller.dart';
+import '../../../../core/storage/promo_config.dart';
 import '../../../../core/storage/app_settings_controller.dart';
 import '../../../../core/sync/sync_status_controller.dart';
+import '../../../inventario/presentation/controllers/inventory_controller.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -39,15 +43,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final settings = ref.watch(appSettingsProvider);
     final admin = ref.watch(adminModeProvider);
     final sync = ref.watch(syncStatusProvider);
+    final products =
+        ref.watch(productSummariesProvider).valueOrNull ?? const [];
+    final currency = NumberFormat.currency(locale: 'es_MX', symbol: r'$');
 
     return Scaffold(
       appBar: AppBar(title: const Text('Configuracion')),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 12, 20, 120),
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
         children: [
-          _SectionCard(
+          Row(
+            children: [
+              Expanded(
+                child: AppMiniStatCard(
+                  label: 'Admin',
+                  value: admin.enabled ? 'Activo' : 'Apagado',
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: AppMiniStatCard(
+                  label: 'Sync',
+                  value: sync.isOnline ? 'Online' : 'Offline',
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          AppSectionCard(
             title: 'Negocio',
-            subtitle: 'Datos operativos visibles en toda la app.',
             child: Column(
               children: [
                 TextField(
@@ -88,18 +112,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          _SectionCard(
+          const SizedBox(height: 12),
+          AppSectionCard(
             title: 'Operacion e inventario',
-            subtitle:
-                'Activa el control de stock cuando ya tengas cantidades listas para operar con inventario.',
             child: SwitchListTile.adaptive(
               contentPadding: EdgeInsets.zero,
               value: settings.stockTrackingEnabled,
               title: const Text('Controlar stock de ingredientes'),
-              subtitle: const Text(
-                'Si esta apagado, la app oculta stock y no marca faltantes para uso rapido hoy.',
-              ),
               onChanged: (value) async {
                 await ref
                     .read(appSettingsProvider.notifier)
@@ -107,11 +126,62 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               },
             ),
           ),
-          const SizedBox(height: 16),
-          _SectionCard(
+          const SizedBox(height: 12),
+          AppSectionCard(
+            title: 'Promociones',
+            child: Column(
+              children: [
+                for (final promo in settings.promoConfigs)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Card(
+                      child: ListTile(
+                        title: Text(promo.title),
+                        subtitle: Text(
+                          '${promo.dayLabel} · ${promo.count} item(s) · ${currency.format(promo.totalPrice)}',
+                        ),
+                        trailing: IconButton(
+                          onPressed: admin.enabled
+                              ? () async {
+                                  final updated = await showDialog<PromoConfig>(
+                                    context: context,
+                                    builder: (_) => _PromoConfigDialog(
+                                      promo: promo,
+                                      productNames: products
+                                          .map((item) => item.name)
+                                          .toList(),
+                                    ),
+                                  );
+                                  if (updated == null) return;
+                                  final next = settings.promoConfigs
+                                      .map(
+                                        (item) => item.id == updated.id
+                                            ? updated
+                                            : item,
+                                      )
+                                      .toList();
+                                  await ref
+                                      .read(appSettingsProvider.notifier)
+                                      .updatePromoConfigs(next);
+                                  if (!context.mounted) return;
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text('Promocion actualizada.'),
+                                    ),
+                                  );
+                                }
+                              : null,
+                          icon: const Icon(Icons.edit_rounded),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
+          AppSectionCard(
             title: 'Modo admin',
-            subtitle:
-                'Controla cambios de precios, caja y configuraciones sensibles.',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -135,10 +205,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       label: Text('PIN global activo (${_maskPin(admin.pin)})'),
                     ),
                   ],
-                ),
-                const SizedBox(height: 16),
-                const Text(
-                  'El PIN es fijo para seguridad operativa y no se puede cambiar desde la app.',
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -193,11 +259,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          _SectionCard(
+          const SizedBox(height: 12),
+          AppSectionCard(
             title: 'Sincronizacion base',
-            subtitle:
-                'Fase 1 deja listo el cimiento para modo offline-first con Supabase.',
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -209,8 +273,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: Text(sync.statusLabel),
                   subtitle: Text(
                     settings.hasSupabaseConfig
-                        ? 'Supabase detectado por dart-define.'
-                        : 'Define SUPABASE_URL y SUPABASE_ANON_KEY para activar sync real.',
+                        ? 'Supabase detectado.'
+                        : 'Sin config.',
                   ),
                 ),
                 ListTile(
@@ -248,33 +312,309 @@ String _maskPin(String pin) {
   return List.filled(pin.length, '*').join();
 }
 
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({
-    required this.title,
-    required this.subtitle,
-    required this.child,
+class _PromoConfigDialog extends StatefulWidget {
+  const _PromoConfigDialog({required this.promo, required this.productNames});
+
+  final PromoConfig promo;
+  final List<String> productNames;
+
+  @override
+  State<_PromoConfigDialog> createState() => _PromoConfigDialogState();
+}
+
+class _PromoConfigDialogState extends State<_PromoConfigDialog> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _dayController;
+  late final TextEditingController _descriptionController;
+  late final TextEditingController _priceController;
+  late List<PromoProductSlotConfig> _slots;
+
+  @override
+  void initState() {
+    super.initState();
+    _titleController = TextEditingController(text: widget.promo.title);
+    _dayController = TextEditingController(text: widget.promo.dayLabel);
+    _descriptionController = TextEditingController(
+      text: widget.promo.description,
+    );
+    _priceController = TextEditingController(
+      text: widget.promo.totalPrice.toStringAsFixed(2),
+    );
+    _slots = List<PromoProductSlotConfig>.from(widget.promo.slots);
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _dayController.dispose();
+    _descriptionController.dispose();
+    _priceController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text(widget.promo.title),
+      content: SizedBox(
+        width: 440,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: _titleController,
+                decoration: const InputDecoration(labelText: 'Nombre'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _dayController,
+                decoration: const InputDecoration(labelText: 'Dia visible'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _descriptionController,
+                decoration: const InputDecoration(labelText: 'Descripcion'),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _priceController,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(labelText: 'Precio total'),
+              ),
+              const SizedBox(height: 16),
+              for (var i = 0; i < _slots.length; i++) ...[
+                _PromoSlotEditor(
+                  index: i,
+                  slot: _slots[i],
+                  productNames: widget.productNames,
+                  onChanged: (slot) {
+                    setState(() => _slots[i] = slot);
+                  },
+                  onRemove: _slots.length > 1
+                      ? () {
+                          setState(() => _slots.removeAt(i));
+                        }
+                      : null,
+                ),
+                const SizedBox(height: 8),
+              ],
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: () {
+                    setState(() {
+                      _slots.add(
+                        PromoProductSlotConfig(
+                          fixedProductName: widget.productNames.firstOrNull,
+                        ),
+                      );
+                    });
+                  },
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Agregar item'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () {
+            final price = double.tryParse(_priceController.text.trim()) ?? -1;
+            if (price < 0 || _slots.isEmpty) return;
+            Navigator.of(context).pop(
+              widget.promo.copyWith(
+                title: _titleController.text.trim(),
+                dayLabel: _dayController.text.trim(),
+                description: _descriptionController.text.trim(),
+                totalPrice: price,
+                slots: _slots,
+              ),
+            );
+          },
+          child: const Text('Guardar'),
+        ),
+      ],
+    );
+  }
+}
+
+class _PromoSlotEditor extends StatelessWidget {
+  const _PromoSlotEditor({
+    required this.index,
+    required this.slot,
+    required this.productNames,
+    required this.onChanged,
+    this.onRemove,
   });
 
-  final String title;
-  final String subtitle;
-  final Widget child;
+  final int index;
+  final PromoProductSlotConfig slot;
+  final List<String> productNames;
+  final ValueChanged<PromoProductSlotConfig> onChanged;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(20),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 6),
-            Text(subtitle),
-            const SizedBox(height: 20),
-            child,
+            Row(
+              children: [
+                Expanded(child: Text('Item ${index + 1}')),
+                if (onRemove != null)
+                  IconButton(
+                    onPressed: onRemove,
+                    icon: const Icon(Icons.delete_outline_rounded),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment<bool>(value: false, label: Text('Fijo')),
+                ButtonSegment<bool>(value: true, label: Text('A eleccion')),
+              ],
+              selected: {slot.needsSelection},
+              onSelectionChanged: (selection) {
+                final selectable = selection.first;
+                onChanged(
+                  selectable
+                      ? PromoProductSlotConfig(
+                          selectableProductNames:
+                              slot.selectableProductNames.isEmpty
+                              ? productNames.take(1).toList()
+                              : slot.selectableProductNames,
+                        )
+                      : PromoProductSlotConfig(
+                          fixedProductName:
+                              slot.fixedProductName ?? productNames.firstOrNull,
+                        ),
+                );
+              },
+            ),
+            const SizedBox(height: 10),
+            if (!slot.needsSelection)
+              DropdownButtonFormField<String>(
+                initialValue: slot.fixedProductName,
+                decoration: const InputDecoration(labelText: 'Producto fijo'),
+                items: productNames
+                    .map(
+                      (name) => DropdownMenuItem<String>(
+                        value: name,
+                        child: Text(name),
+                      ),
+                    )
+                    .toList(),
+                onChanged: (value) {
+                  if (value == null) return;
+                  onChanged(PromoProductSlotConfig(fixedProductName: value));
+                },
+              )
+            else
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: () async {
+                    final selected = await showDialog<List<String>>(
+                      context: context,
+                      builder: (_) => _SelectableProductsDialog(
+                        allProducts: productNames,
+                        selectedProducts: slot.selectableProductNames,
+                      ),
+                    );
+                    if (selected == null || selected.isEmpty) return;
+                    onChanged(
+                      PromoProductSlotConfig(selectableProductNames: selected),
+                    );
+                  },
+                  icon: const Icon(Icons.checklist_rounded),
+                  label: Text(
+                    '${slot.selectableProductNames.length} seleccionable(s)',
+                  ),
+                ),
+              ),
           ],
         ),
       ),
+    );
+  }
+}
+
+class _SelectableProductsDialog extends StatefulWidget {
+  const _SelectableProductsDialog({
+    required this.allProducts,
+    required this.selectedProducts,
+  });
+
+  final List<String> allProducts;
+  final List<String> selectedProducts;
+
+  @override
+  State<_SelectableProductsDialog> createState() =>
+      _SelectableProductsDialogState();
+}
+
+class _SelectableProductsDialogState extends State<_SelectableProductsDialog> {
+  late final Set<String> _selected;
+
+  @override
+  void initState() {
+    super.initState();
+    _selected = widget.selectedProducts.toSet();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Productos a eleccion'),
+      content: SizedBox(
+        width: 360,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: widget.allProducts
+                .map(
+                  (name) => CheckboxListTile(
+                    value: _selected.contains(name),
+                    title: Text(name),
+                    contentPadding: EdgeInsets.zero,
+                    onChanged: (value) {
+                      setState(() {
+                        if (value ?? false) {
+                          _selected.add(name);
+                        } else {
+                          _selected.remove(name);
+                        }
+                      });
+                    },
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_selected.toList()),
+          child: const Text('Guardar'),
+        ),
+      ],
     );
   }
 }

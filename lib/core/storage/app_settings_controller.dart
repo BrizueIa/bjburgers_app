@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/app_environment.dart';
+import 'promo_config.dart';
 import 'local_settings_store.dart';
 
 class AppSettingsState {
@@ -8,12 +9,14 @@ class AppSettingsState {
     required this.businessName,
     required this.digitalMenuUrl,
     required this.stockTrackingEnabled,
+    required this.promoConfigs,
     required this.lastSyncLabel,
   });
 
   final String businessName;
   final String digitalMenuUrl;
   final bool stockTrackingEnabled;
+  final List<PromoConfig> promoConfigs;
   final String lastSyncLabel;
 
   bool get hasSupabaseConfig => AppEnvironment.hasSupabaseConfig;
@@ -22,12 +25,14 @@ class AppSettingsState {
     String? businessName,
     String? digitalMenuUrl,
     bool? stockTrackingEnabled,
+    List<PromoConfig>? promoConfigs,
     String? lastSyncLabel,
   }) {
     return AppSettingsState(
       businessName: businessName ?? this.businessName,
       digitalMenuUrl: digitalMenuUrl ?? this.digitalMenuUrl,
       stockTrackingEnabled: stockTrackingEnabled ?? this.stockTrackingEnabled,
+      promoConfigs: promoConfigs ?? this.promoConfigs,
       lastSyncLabel: lastSyncLabel ?? this.lastSyncLabel,
     );
   }
@@ -44,6 +49,7 @@ class AppSettingsController extends StateNotifier<AppSettingsState> {
       businessName: snapshot.businessName,
       digitalMenuUrl: snapshot.digitalMenuUrl,
       stockTrackingEnabled: snapshot.stockTrackingEnabled,
+      promoConfigs: snapshot.promoConfigs,
       lastSyncLabel: snapshot.lastSyncLabel,
     );
   }
@@ -61,6 +67,11 @@ class AppSettingsController extends StateNotifier<AppSettingsState> {
   Future<void> updateStockTrackingEnabled(bool value) async {
     state = state.copyWith(stockTrackingEnabled: value);
     await _ref.read(localSettingsStoreProvider).saveStockTrackingEnabled(value);
+  }
+
+  Future<void> updatePromoConfigs(List<PromoConfig> value) async {
+    state = state.copyWith(promoConfigs: value);
+    await _ref.read(localSettingsStoreProvider).savePromoConfigs(value);
   }
 
   Future<void> recordSyncAttempt() async {

@@ -1,7 +1,10 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'promo_config.dart';
 import 'shared_preferences_provider.dart';
 
 class LocalSettingsSnapshot {
@@ -11,6 +14,7 @@ class LocalSettingsSnapshot {
     required this.adminPin,
     required this.adminModeEnabled,
     required this.stockTrackingEnabled,
+    required this.promoConfigs,
     required this.settingsUpdatedAt,
     required this.lastSyncLabel,
     this.remoteSettingsId,
@@ -21,6 +25,7 @@ class LocalSettingsSnapshot {
   final String adminPin;
   final bool adminModeEnabled;
   final bool stockTrackingEnabled;
+  final List<PromoConfig> promoConfigs;
   final DateTime settingsUpdatedAt;
   final String lastSyncLabel;
   final String? remoteSettingsId;
@@ -34,6 +39,7 @@ class LocalSettingsStore {
   static const adminPinKey = 'admin_pin';
   static const adminModeEnabledKey = 'admin_mode_enabled';
   static const stockTrackingEnabledKey = 'stock_tracking_enabled';
+  static const promoConfigsKey = 'promo_configs';
   static const settingsUpdatedAtKey = 'settings_updated_at';
   static const lastSyncLabelKey = 'last_sync_label';
   static const remoteSettingsIdKey = 'remote_settings_id';
@@ -48,6 +54,7 @@ class LocalSettingsStore {
       adminModeEnabled: _preferences.getBool(adminModeEnabledKey) ?? false,
       stockTrackingEnabled:
           _preferences.getBool(stockTrackingEnabledKey) ?? false,
+      promoConfigs: _readPromoConfigs(),
       settingsUpdatedAt:
           DateTime.tryParse(
             _preferences.getString(settingsUpdatedAtKey) ?? '',
@@ -82,6 +89,14 @@ class LocalSettingsStore {
 
   Future<void> saveStockTrackingEnabled(bool value) async {
     await _preferences.setBool(stockTrackingEnabledKey, value);
+    await _touchSettingsUpdatedAt();
+  }
+
+  Future<void> savePromoConfigs(List<PromoConfig> value) async {
+    await _preferences.setString(
+      promoConfigsKey,
+      jsonEncode(value.map((item) => item.toJson()).toList()),
+    );
     await _touchSettingsUpdatedAt();
   }
 
@@ -120,6 +135,23 @@ class LocalSettingsStore {
       settingsUpdatedAtKey,
       DateTime.now().toUtc().toIso8601String(),
     );
+  }
+
+  List<PromoConfig> _readPromoConfigs() {
+    final raw = _preferences.getString(promoConfigsKey);
+    if (raw == null || raw.isEmpty) return defaultPromoConfigs;
+
+    try {
+      final decoded = jsonDecode(raw) as List<dynamic>;
+      return decoded
+          .map(
+            (item) =>
+                PromoConfig.fromJson(Map<String, dynamic>.from(item as Map)),
+          )
+          .toList();
+    } catch (_) {
+      return defaultPromoConfigs;
+    }
   }
 }
 

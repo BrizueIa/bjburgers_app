@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../app/widgets/ui_cards.dart';
 import '../../../../core/admin/admin_mode_controller.dart';
 import '../../../../core/database/app_database.dart';
 import '../../../../core/storage/app_settings_controller.dart';
@@ -43,31 +44,60 @@ class _InventarioScreenState extends ConsumerState<InventarioScreen>
         title: const Text('Inventario'),
         actions: [
           Padding(
-            padding: const EdgeInsets.only(right: 20),
+            padding: const EdgeInsets.only(right: 16),
             child: Center(
-              child: Chip(
-                avatar: Icon(
-                  admin.enabled
-                      ? Icons.admin_panel_settings_rounded
-                      : Icons.visibility_rounded,
-                  size: 18,
-                ),
-                label: Text(admin.enabled ? 'Edicion activa' : 'Solo consulta'),
+              child: Icon(
+                admin.enabled
+                    ? Icons.admin_panel_settings_rounded
+                    : Icons.visibility_rounded,
+                size: 20,
               ),
             ),
           ),
         ],
-        bottom: TabBar(
-          controller: _tabController,
-          tabs: const [
-            Tab(text: 'Ingredientes'),
-            Tab(text: 'Productos'),
-          ],
-        ),
       ),
-      body: TabBarView(
-        controller: _tabController,
-        children: const [_IngredientsTab(), _ProductsTab()],
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(
+              children: [
+                Expanded(
+                  child: AppMiniStatCard(
+                    label: 'Modo',
+                    value: admin.enabled ? 'Edicion' : 'Consulta',
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: AppMiniStatCard(
+                    label: 'Vista',
+                    value: _tabController.index == 0
+                        ? 'Ingredientes'
+                        : 'Productos',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: TabBar(
+              controller: _tabController,
+              dividerColor: Colors.transparent,
+              tabs: const [
+                Tab(text: 'Ingredientes'),
+                Tab(text: 'Productos'),
+              ],
+            ),
+          ),
+          Expanded(
+            child: TabBarView(
+              controller: _tabController,
+              children: const [_IngredientsTab(), _ProductsTab()],
+            ),
+          ),
+        ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () {
@@ -114,24 +144,22 @@ class _IngredientsTab extends ConsumerWidget {
     return ingredients.when(
       data: (items) {
         if (items.isEmpty) {
-          return const _EmptyState(
-            icon: Icons.inventory_2_rounded,
-            title: 'Todavia no hay ingredientes',
-            message:
-                'Agrega insumos como carne, pan, queso o verduras para construir recetas.',
-          );
+          return const _EmptyState(icon: Icons.inventory_2_rounded);
         }
 
         return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           itemBuilder: (context, index) {
             final ingredient = items[index];
             return Card(
               child: ListTile(
-                contentPadding: const EdgeInsets.all(20),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 8,
+                ),
                 title: Text(ingredient.name),
                 subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.only(top: 6),
                   child: Wrap(
                     spacing: 8,
                     runSpacing: 8,
@@ -221,27 +249,22 @@ class _ProductsTab extends ConsumerWidget {
     return products.when(
       data: (items) {
         if (items.isEmpty) {
-          return const _EmptyState(
-            icon: Icons.fastfood_rounded,
-            title: 'Todavia no hay productos',
-            message:
-                'Aqui crearas refrescos simples y hamburguesas con receta por ingrediente.',
-          );
+          return const _EmptyState(icon: Icons.fastfood_rounded);
         }
 
         return ListView.separated(
-          padding: const EdgeInsets.fromLTRB(20, 20, 20, 120),
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
           itemBuilder: (context, index) {
             final product = items[index];
             return Card(
               child: ExpansionTile(
                 tilePadding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 8,
+                  horizontal: 14,
+                  vertical: 4,
                 ),
                 title: Text(product.name),
                 subtitle: Padding(
-                  padding: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.only(top: 6),
                   child: Wrap(
                     spacing: 8,
                     runSpacing: 8,
@@ -325,7 +348,7 @@ class _ProductsTab extends ConsumerWidget {
                     ),
                   ],
                 ),
-                childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+                childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
                 children: [
                   Align(
                     alignment: Alignment.centerLeft,
@@ -904,15 +927,9 @@ class _RecipeEditorItem {
 }
 
 class _EmptyState extends StatelessWidget {
-  const _EmptyState({
-    required this.icon,
-    required this.title,
-    required this.message,
-  });
+  const _EmptyState({required this.icon});
 
   final IconData icon;
-  final String title;
-  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -921,13 +938,7 @@ class _EmptyState extends StatelessWidget {
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 52),
-            const SizedBox(height: 12),
-            Text(title, style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            Text(message, textAlign: TextAlign.center),
-          ],
+          children: [Icon(icon, size: 52)],
         ),
       ),
     );
