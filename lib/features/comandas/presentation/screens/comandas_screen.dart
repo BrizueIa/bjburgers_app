@@ -202,7 +202,6 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
                 builder: (context) => _ConfirmOrderDialog(
                   draftItems: _draftItems,
                   notesController: _notesController,
-                  currency: currency,
                   onRemoveItem: (index) {
                     if (index < 0 || index >= _draftItems.length) return;
                     setState(() {
@@ -696,155 +695,117 @@ class _OrderSummaryCard extends StatelessWidget {
       (sum, item) => sum + (item.unitPrice * item.quantity),
     );
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(18),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('Resumen', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
-            if (draftItems.isEmpty)
-              Container(
-                width: double.infinity,
+    return Padding(
+      padding: const EdgeInsets.all(18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (draftItems.isEmpty)
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primaryContainer,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Text('Agrega productos para formar la comanda.'),
+            )
+          else
+            ...draftItems.asMap().entries.map(
+              (entry) => Container(
+                margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Text('Agrega productos para formar la comanda.'),
-              )
-            else
-              ...draftItems.asMap().entries.map(
-                (entry) => Container(
-                  margin: const EdgeInsets.only(bottom: 8),
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
-                      color: Theme.of(context).colorScheme.outlineVariant,
-                    ),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
                   ),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      CircleAvatar(
-                        backgroundColor: Theme.of(context).colorScheme.surface,
-                        foregroundColor: Theme.of(
-                          context,
-                        ).colorScheme.onSurface,
-                        child: Text('${entry.value.quantity}'),
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              entry.value.productName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w800,
-                              ),
-                            ),
-                            if (entry.value.comboLabel != null) ...[
-                              const SizedBox(height: 4),
-                              Text(
-                                entry.value.comboLabel!,
-                                style: TextStyle(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onPrimaryContainer,
-                                  fontWeight: FontWeight.w700,
-                                ),
-                              ),
-                            ],
-                            if (displayOrderItemNotes(entry.value.notes) !=
-                                null) ...[
-                              const SizedBox(height: 4),
-                              Text(displayOrderItemNotes(entry.value.notes)!),
-                            ],
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    CircleAvatar(
+                      backgroundColor: Theme.of(context).colorScheme.surface,
+                      foregroundColor: Theme.of(context).colorScheme.onSurface,
+                      child: Text('${entry.value.quantity}'),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            entry.value.productName,
+                            style: const TextStyle(fontWeight: FontWeight.w800),
+                          ),
+                          if (entry.value.comboLabel != null) ...[
                             const SizedBox(height: 4),
                             Text(
-                              entry.value.removedIngredients.isEmpty
-                                  ? 'Sin cambios'
-                                  : 'Sin: ${entry.value.removedIngredients.join(', ')}',
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              currency.format(
-                                entry.value.unitPrice * entry.value.quantity,
+                              entry.value.comboLabel!,
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onPrimaryContainer,
+                                fontWeight: FontWeight.w700,
                               ),
-                              style: Theme.of(context).textTheme.titleSmall
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onPrimaryContainer,
-                                    fontWeight: FontWeight.w800,
-                                  ),
                             ),
                           ],
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Theme.of(context).colorScheme.surface,
-                              borderRadius: BorderRadius.circular(999),
-                            ),
-                            child: Text(
-                              '${entry.value.quantity}',
-                              style: Theme.of(context).textTheme.titleSmall,
-                            ),
-                          ),
-                          if (onRemoveItem != null) ...[
-                            const SizedBox(height: 6),
-                            IconButton(
-                              visualDensity: VisualDensity.compact,
-                              icon: const Icon(
-                                Icons.remove_circle_outline_rounded,
-                              ),
-                              tooltip: 'Quitar producto',
-                              color: Theme.of(context).colorScheme.error,
-                              onPressed: () => onRemoveItem?.call(entry.key),
-                            ),
+                          if (displayOrderItemNotes(entry.value.notes) !=
+                              null) ...[
+                            const SizedBox(height: 4),
+                            Text(displayOrderItemNotes(entry.value.notes)!),
                           ],
                         ],
                       ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: 6),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 6,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.surface,
+                            borderRadius: BorderRadius.circular(999),
+                          ),
+                          child: Text(
+                            '${entry.value.quantity}',
+                            style: Theme.of(context).textTheme.titleSmall,
+                          ),
+                        ),
+                        if (onRemoveItem != null) ...[
+                          const SizedBox(height: 6),
+                          IconButton(
+                            visualDensity: VisualDensity.compact,
+                            icon: const Icon(
+                              Icons.remove_circle_outline_rounded,
+                            ),
+                            tooltip: 'Quitar producto',
+                            color: Theme.of(context).colorScheme.error,
+                            onPressed: () => onRemoveItem?.call(entry.key),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
                 ),
               ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: notesController,
-              minLines: compact ? 2 : 3,
-              maxLines: compact ? 3 : 4,
-              decoration: const InputDecoration(
-                labelText: 'Notas generales de la comanda',
-                alignLabelWithHint: true,
-              ),
             ),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Total'),
-                Text(
-                  currency.format(draftTotal),
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ],
+          if (draftItems.isNotEmpty) const SizedBox(height: 10),
+          TextField(
+            controller: notesController,
+            minLines: compact ? 2 : 3,
+            maxLines: compact ? 3 : 4,
+            decoration: const InputDecoration(
+              labelText: 'Notas generales de la comanda',
+              alignLabelWithHint: true,
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -871,36 +832,40 @@ class _SaveOrderBar extends StatelessWidget {
       elevation: compact ? 8 : 0,
       borderRadius: BorderRadius.circular(14),
       color: Theme.of(context).colorScheme.surface,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    '$totalItems item(s)',
-                    style: Theme.of(context).textTheme.titleSmall,
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    currency.format(draftTotal),
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
+      child: InkWell(
+        onTap: onSaveOrder,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      '$totalItems item(s)',
+                      style: Theme.of(context).textTheme.titleSmall,
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 2),
+                    Text(
+                      currency.format(draftTotal),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            const SizedBox(width: 12),
-            FilledButton.icon(
-              onPressed: onSaveOrder,
-              icon: const Icon(Icons.playlist_add_check_circle_rounded),
-              label: const Text('Guardar comanda'),
-            ),
-          ],
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: onSaveOrder,
+                icon: const Icon(Icons.playlist_add_check_circle_rounded),
+                label: const Text('Guardar comanda'),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -921,51 +886,188 @@ class _ConfirmOrderDialog extends StatelessWidget {
   const _ConfirmOrderDialog({
     required this.draftItems,
     required this.notesController,
-    required this.currency,
     this.onRemoveItem,
     this.onCancelOrder,
   });
 
   final List<OrderDraftItem> draftItems;
   final TextEditingController notesController;
-  final NumberFormat currency;
   final void Function(int index)? onRemoveItem;
   final VoidCallback? onCancelOrder;
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Confirmar comanda'),
-      content: SizedBox(
-        width: 420,
-        child: SingleChildScrollView(
-          child: StatefulBuilder(
-            builder: (context, setState) => _OrderSummaryCard(
-              draftItems: draftItems,
-              notesController: notesController,
-              currency: currency,
-              compact: true,
-              onRemoveItem: (index) {
-                onRemoveItem?.call(index);
-                setState(() {});
-              },
-            ),
-          ),
+    final scheme = Theme.of(context).colorScheme;
+    return Dialog(
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 820),
+        child: StatefulBuilder(
+          builder: (context, setState) {
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Comanda',
+                              style: Theme.of(context).textTheme.headlineSmall,
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '${draftItems.length} item(s)',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                            ),
+                          ],
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: () => Navigator.of(context).pop(false),
+                        icon: const Icon(Icons.close_rounded),
+                        tooltip: 'Cerrar',
+                      ),
+                    ],
+                  ),
+                ),
+                Divider(height: 1, color: scheme.outlineVariant),
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
+                    child: Column(
+                      children: [
+                        if (draftItems.isEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            child: Text(
+                              'Agrega productos para formar la comanda.',
+                              style: Theme.of(context).textTheme.bodyMedium
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                            ),
+                          )
+                        else
+                          ...draftItems.asMap().entries.map((entry) {
+                            final note = displayOrderItemNotes(
+                              entry.value.notes,
+                            );
+                            return Padding(
+                              padding: const EdgeInsets.only(bottom: 12),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: 10,
+                                      vertical: 6,
+                                    ),
+                                    decoration: BoxDecoration(
+                                      color: scheme.surfaceContainerHighest,
+                                      borderRadius: BorderRadius.circular(999),
+                                    ),
+                                    child: Text('${entry.value.quantity}'),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          entry.value.productName,
+                                          style: Theme.of(
+                                            context,
+                                          ).textTheme.titleMedium,
+                                        ),
+                                        if (entry.value.comboLabel != null) ...[
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            entry.value.comboLabel!,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color:
+                                                      scheme.onSurfaceVariant,
+                                                ),
+                                          ),
+                                        ],
+                                        if (note != null) ...[
+                                          const SizedBox(height: 4),
+                                          Text(
+                                            note,
+                                            style: Theme.of(context)
+                                                .textTheme
+                                                .bodySmall
+                                                ?.copyWith(
+                                                  color:
+                                                      scheme.onSurfaceVariant,
+                                                ),
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                  if (onRemoveItem != null)
+                                    IconButton(
+                                      visualDensity: VisualDensity.compact,
+                                      icon: const Icon(
+                                        Icons.remove_circle_outline_rounded,
+                                      ),
+                                      tooltip: 'Quitar producto',
+                                      color: scheme.error,
+                                      onPressed: () {
+                                        onRemoveItem?.call(entry.key);
+                                        setState(() {});
+                                      },
+                                    ),
+                                ],
+                              ),
+                            );
+                          }),
+                        TextField(
+                          controller: notesController,
+                          minLines: 1,
+                          maxLines: 2,
+                          decoration: const InputDecoration(
+                            hintText: 'Notas (opcional)',
+                            border: UnderlineInputBorder(),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                Divider(height: 1, color: scheme.outlineVariant),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 20),
+                  child: Row(
+                    children: [
+                      TextButton(
+                        onPressed: () {
+                          onCancelOrder?.call();
+                          Navigator.of(context).pop(false);
+                        },
+                        child: const Text('Limpiar'),
+                      ),
+                      const Spacer(),
+                      FilledButton(
+                        onPressed: () => Navigator.of(context).pop(true),
+                        child: const Text('Guardar comanda'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+          },
         ),
       ),
-      actions: [
-        TextButton(
-          onPressed: () {
-            onCancelOrder?.call();
-            Navigator.of(context).pop(false);
-          },
-          child: const Text('Cancelar'),
-        ),
-        FilledButton(
-          onPressed: () => Navigator.of(context).pop(true),
-          child: const Text('Guardar comanda'),
-        ),
-      ],
     );
   }
 }
