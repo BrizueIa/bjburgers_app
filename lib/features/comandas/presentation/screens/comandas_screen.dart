@@ -1582,13 +1582,33 @@ Future<List<String>> _showCustomizationDialog(
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(const <String>[]),
-            child: const Text('Con todo'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(selected.toList()),
-            child: const Text('Siguiente'),
+          SizedBox(
+            width: double.infinity,
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    style: const ButtonStyle(
+                      minimumSize: WidgetStatePropertyAll(Size(0, 44)),
+                    ),
+                    onPressed: () =>
+                        Navigator.of(context).pop(const <String>[]),
+                    child: const Text('Con todo'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton(
+                    style: const ButtonStyle(
+                      minimumSize: WidgetStatePropertyAll(Size(0, 44)),
+                    ),
+                    onPressed: () =>
+                        Navigator.of(context).pop(selected.toList()),
+                    child: const Text('Siguiente'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
@@ -1619,54 +1639,82 @@ Future<List<dynamic>> _showExtrasSelectionDialog(
           width: 360,
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              ListTile(
-                contentPadding: EdgeInsets.zero,
-                title: const Text('Sin extras'),
-                leading: Icon(
-                  selected.isEmpty
-                      ? Icons.radio_button_checked_rounded
-                      : Icons.radio_button_off_rounded,
-                ),
-                onTap: () => setState(() => selected.clear()),
+              Text(
+                'Selecciona extras',
+                style: Theme.of(context).textTheme.titleSmall,
               ),
-              const SizedBox(height: 4),
-              for (final extra in extras)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(extra.name),
-                  subtitle: Text(
-                    NumberFormat.currency(
-                      locale: 'es_MX',
-                      symbol: r'$',
-                    ).format(extra.salePrice),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  FilterChip(
+                    label: const Text('Sin extras'),
+                    avatar: Icon(
+                      selected.isEmpty
+                          ? Icons.radio_button_checked_rounded
+                          : Icons.radio_button_off_rounded,
+                      size: 16,
+                    ),
+                    selected: selected.isEmpty,
+                    onSelected: (_) => setState(() => selected.clear()),
                   ),
-                  leading: Icon(
-                    selected.contains(extra)
-                        ? Icons.check_box_rounded
-                        : Icons.check_box_outline_blank_rounded,
-                  ),
-                  onTap: () {
-                    setState(() {
-                      if (selected.contains(extra)) {
-                        selected.remove(extra);
-                      } else {
-                        selected.add(extra);
-                      }
-                    });
-                  },
-                ),
+                  ...extras.map((extra) {
+                    final isSelected = selected.contains(extra);
+                    return FilterChip(
+                      label: Text('${extra.name}'),
+                      avatar: Icon(
+                        isSelected
+                            ? Icons.check_box_rounded
+                            : Icons.check_box_outline_blank_rounded,
+                        size: 16,
+                      ),
+                      selected: isSelected,
+                      onSelected: (value) {
+                        setState(() {
+                          if (value) {
+                            selected.add(extra);
+                          } else {
+                            selected.remove(extra);
+                          }
+                        });
+                      },
+                    );
+                  }),
+                ],
+              ),
             ],
           ),
         ),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(const []),
-            child: const Text('Omitir'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(selected.toList()),
-            child: const Text('Agregar'),
+          SizedBox(
+            width: double.infinity,
+            child: Row(
+              children: [
+                Expanded(
+                  child: TextButton(
+                    style: const ButtonStyle(
+                      minimumSize: WidgetStatePropertyAll(Size(0, 44)),
+                    ),
+                    onPressed: () => Navigator.of(context).pop(const []),
+                    child: const Text('Omitir'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton(
+                    style: const ButtonStyle(
+                      minimumSize: WidgetStatePropertyAll(Size(0, 44)),
+                    ),
+                    onPressed: () =>
+                        Navigator.of(context).pop(selected.toList()),
+                    child: const Text('Agregar'),
+                  ),
+                ),
+              ],
+            ),
           ),
         ],
       ),
