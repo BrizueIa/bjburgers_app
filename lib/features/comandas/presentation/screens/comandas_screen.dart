@@ -35,6 +35,7 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
       product,
       comboLabel: comboLabel,
     );
+    if (removedIngredients == null) return;
     if (!mounted) return;
 
     final availableExtras = products.where((item) {
@@ -50,6 +51,7 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
       productName: product.name,
       comboLabel: comboLabel,
     );
+    if (selectedExtras == null) return;
 
     if (!mounted) return;
 
@@ -1510,7 +1512,7 @@ bool _matchesToday(String dayLabel) {
   return weekdayLabels[effectiveDay.weekday] == dayLabel;
 }
 
-Future<List<String>> _showCustomizationDialog(
+Future<List<String>?> _showCustomizationDialog(
   BuildContext context,
   WidgetRef ref,
   dynamic product, {
@@ -1614,10 +1616,10 @@ Future<List<String>> _showCustomizationDialog(
       ),
     ),
   );
-  return result ?? const <String>[];
+  return result;
 }
 
-Future<List<dynamic>> _showExtrasSelectionDialog(
+Future<List<dynamic>?> _showExtrasSelectionDialog(
   BuildContext context,
   List<dynamic> extras, {
   required String productName,
@@ -1720,5 +1722,5 @@ Future<List<dynamic>> _showExtrasSelectionDialog(
       ),
     ),
   );
-  return result ?? const [];
+  return result;
 }
