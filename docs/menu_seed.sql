@@ -176,3 +176,56 @@ ON CONFLICT (product_id, ingredient_id) DO UPDATE
 SET
   quantity_used = EXCLUDED.quantity_used,
   is_optional = EXCLUDED.is_optional;
+
+-- 4) BASES OBLIGATORIAS (HAMBURGUESAS Y HOT DOGS)
+WITH burger_base(ingredient_name, quantity_used, is_optional) AS (
+  VALUES
+    ('Pan de hamburguesa', 1, false),
+    ('Carne Angus', 1, false),
+    ('Queso americano', 1, false),
+    ('Lechuga', 20, true),
+    ('Tomate', 20, true),
+    ('Cebolla', 15, true),
+    ('Mayonesa', 10, true),
+    ('Mostaza', 5, true),
+    ('Catsup', 10, true)
+),
+hotdog_base(ingredient_name, quantity_used, is_optional) AS (
+  VALUES
+    ('Pan de hot dog', 1, false),
+    ('Salchicha premium', 1, false),
+    ('Tomate', 15, true),
+    ('Cebolla', 15, true),
+    ('Mayonesa', 10, true),
+    ('Mostaza', 5, true),
+    ('Catsup', 10, true)
+)
+INSERT INTO public.product_recipe_items (
+  product_id,
+  ingredient_id,
+  quantity_used,
+  is_optional
+)
+SELECT
+  p.id,
+  i.id,
+  base.quantity_used,
+  base.is_optional
+FROM public.products p
+JOIN burger_base base ON p.category_name = 'Hamburguesas'
+JOIN public.ingredients i ON i.name = base.ingredient_name
+LEFT JOIN public.product_recipe_items pri
+  ON pri.product_id = p.id AND pri.ingredient_id = i.id
+WHERE pri.id IS NULL
+UNION ALL
+SELECT
+  p.id,
+  i.id,
+  base.quantity_used,
+  base.is_optional
+FROM public.products p
+JOIN hotdog_base base ON p.category_name = 'Hot Dogs'
+JOIN public.ingredients i ON i.name = base.ingredient_name
+LEFT JOIN public.product_recipe_items pri
+  ON pri.product_id = p.id AND pri.ingredient_id = i.id
+WHERE pri.id IS NULL;
