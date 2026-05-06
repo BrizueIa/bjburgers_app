@@ -565,6 +565,9 @@ class _SalesHistory extends ConsumerWidget {
       data: (sales) => RefreshIndicator(
         onRefresh: () async {
           ref.invalidate(salesHistoryProvider);
+          for (final sale in sales) {
+            ref.invalidate(spinCodeBySaleProvider(sale.id));
+          }
           await Future.delayed(const Duration(milliseconds: 200));
         },
         child: ListView(
@@ -645,6 +648,31 @@ class _SalesHistory extends ConsumerWidget {
                                         style: Theme.of(
                                           context,
                                         ).textTheme.bodySmall,
+                                      ),
+                                      Align(
+                                        alignment: Alignment.centerLeft,
+                                        child: TextButton.icon(
+                                          onPressed: () async {
+                                            await Clipboard.setData(
+                                              ClipboardData(text: spin.code),
+                                            );
+                                            if (!context.mounted) return;
+                                            ScaffoldMessenger.of(
+                                              context,
+                                            ).showSnackBar(
+                                              const SnackBar(
+                                                content: Text(
+                                                  'Codigo copiado.',
+                                                ),
+                                              ),
+                                            );
+                                          },
+                                          icon: const Icon(
+                                            Icons.copy_rounded,
+                                            size: 16,
+                                          ),
+                                          label: const Text('Copiar codigo'),
+                                        ),
                                       ),
                                       Text(
                                         status,
