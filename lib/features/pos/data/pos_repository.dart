@@ -1,11 +1,14 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/database/app_database.dart';
 import '../../../core/database/app_database_provider.dart';
+import '../../../core/config/supabase_client_provider.dart';
 import '../../../core/storage/local_settings_store.dart';
 import '../../../core/sync/sync_queue_service.dart';
 import '../../comandas/data/order_item_notes.dart';
@@ -20,6 +23,8 @@ class SaleSummary {
     required this.paymentMethod,
     required this.soldAt,
     required this.sourceOrderId,
+    required this.itemsSummary,
+    required this.totalUnits,
   });
 
   final String id;
@@ -28,6 +33,8 @@ class SaleSummary {
   final String paymentMethod;
   final DateTime soldAt;
   final String? sourceOrderId;
+  final String? itemsSummary;
+  final int totalUnits;
 }
 
 class PosRepository {
@@ -36,13 +43,16 @@ class PosRepository {
     this._cajaRepository,
     this._syncQueueService,
     this._localSettingsStore,
+    this._supabaseClient,
   );
 
   final AppDatabase _database;
   final CajaRepository _cajaRepository;
   final SyncQueueService _syncQueueService;
   final LocalSettingsStore _localSettingsStore;
+  final SupabaseClient? _supabaseClient;
   final Uuid _uuid = const Uuid();
+  final Random _random = Random();
 
   Stream<List<OrderSummary>> watchReadyOrders() {
     const sql = '''
@@ -103,25 +113,47 @@ class PosRepository {
   }
 
   Stream<List<SaleSummary>> watchSales() {
-    final query = _database.select(_database.sales)
-      ..orderBy([(table) => OrderingTerm.desc(table.soldAt)]);
-    return query.watch().map(
-      (rows) => rows
-          .map(
-            (row) => SaleSummary(
-              id: row.id,
-              saleNumber: row.saleNumber,
-              totalAmount: row.totalAmount,
-              paymentMethod: row.paymentMethod,
-              soldAt: row.soldAt,
-              sourceOrderId: row.sourceOrderId,
-            ),
-          )
-          .toList(),
-    );
+    const sql = '''
+      SELECT
+        s.id,
+        s.sale_number,
+        s.total_amount,
+        s.payment_method,
+        s.sold_at,
+        s.source_order_id,
+        COALESCE(SUM(si.quantity), 0) AS total_units,
+        GROUP_CONCAT(
+          si.product_name_snapshot || ' x' || si.quantity,
+          ' · '
+        ) AS items_summary
+      FROM sales s
+      LEFT JOIN sale_items si ON si.sale_id = s.id
+      GROUP BY s.id
+      ORDER BY s.sold_at DESC
+    ''';
+
+    return _database
+        .customSelect(sql, readsFrom: {_database.sales, _database.saleItems})
+        .watch()
+        .map(
+          (rows) => rows
+              .map(
+                (row) => SaleSummary(
+                  id: row.read<String>('id'),
+                  saleNumber: row.read<String>('sale_number'),
+                  totalAmount: row.read<double>('total_amount'),
+                  paymentMethod: row.read<String>('payment_method'),
+                  soldAt: row.read<DateTime>('sold_at'),
+                  sourceOrderId: row.read<String?>('source_order_id'),
+                  itemsSummary: row.read<String?>('items_summary'),
+                  totalUnits: row.read<int>('total_units'),
+                ),
+              )
+              .toList(),
+        );
   }
 
-  Future<void> checkoutOrder({
+  Future<String> checkoutOrder({
     required OrderSummary order,
     required String paymentMethod,
     required double paidAmount,
@@ -236,6 +268,63 @@ class PosRepository {
         'updated_at': now.toUtc().toIso8601String(),
       },
     );
+
+    return saleId;
+  }
+
+  Future<String> createSpinCode({
+    int remainingSpins = 1,
+    String? saleId,
+  }) async {
+    final client = _supabaseClient;
+    if (client == null) {
+      throw StateError('Supabase no configurado.');
+    }
+
+    for (var attempt = 0; attempt < 5; attempt += 1) {
+      final code = _buildSpinCode();
+      try {
+        final response = await client
+            .from('spin_codes')
+            .insert({
+              'code': code,
+              'remaining_spins': remainingSpins,
+              'is_active': true,
+              if (saleId != null) 'sale_id': saleId,
+            })
+            .select('code')
+            .single();
+        return response['code'] as String;
+      } on PostgrestException catch (error) {
+        if (error.code == '23505') {
+          continue;
+        }
+        if (error.code == '23503' && saleId != null) {
+          final response = await client
+              .from('spin_codes')
+              .insert({
+                'code': code,
+                'remaining_spins': remainingSpins,
+                'is_active': true,
+              })
+              .select('code')
+              .single();
+          return response['code'] as String;
+        }
+        rethrow;
+      }
+    }
+
+    throw StateError('No se pudo generar el codigo.');
+  }
+
+  String _buildSpinCode() {
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    final buffer = StringBuffer();
+    for (var i = 0; i < 8; i += 1) {
+      buffer.write(chars[_random.nextInt(chars.length)]);
+    }
+    return buffer.toString();
   }
 
   Future<void> _applyStockConsumption(
@@ -409,5 +498,6 @@ final posRepositoryProvider = Provider<PosRepository>((ref) {
     ref.watch(cajaRepositoryProvider),
     ref.watch(syncQueueServiceProvider),
     ref.watch(localSettingsStoreProvider),
+    ref.watch(supabaseClientProvider),
   );
 });

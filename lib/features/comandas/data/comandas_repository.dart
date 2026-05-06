@@ -65,6 +65,7 @@ class OrderSummary {
     required this.notes,
     required this.totalEstimated,
     required this.createdAt,
+    required this.updatedAt,
     required this.itemCount,
   });
 
@@ -74,6 +75,7 @@ class OrderSummary {
   final String? notes;
   final double totalEstimated;
   final DateTime createdAt;
+  final DateTime updatedAt;
   final int itemCount;
 
   bool get isReadyForCheckout => status == 'ready';
@@ -95,6 +97,7 @@ class ComandasRepository {
         o.notes,
         o.total_estimated,
         o.created_at,
+        o.updated_at,
         COUNT(oi.id) AS item_count
       FROM orders o
       LEFT JOIN order_items oi ON oi.order_id = o.id
@@ -115,6 +118,7 @@ class ComandasRepository {
                   notes: row.read<String?>('notes'),
                   totalEstimated: row.read<double>('total_estimated'),
                   createdAt: row.read<DateTime>('created_at'),
+                  updatedAt: row.read<DateTime>('updated_at'),
                   itemCount: row.read<int>('item_count'),
                 ),
               )

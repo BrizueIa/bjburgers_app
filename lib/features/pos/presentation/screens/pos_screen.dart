@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../app/widgets/ui_cards.dart';
@@ -54,7 +55,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
               setState(() => _paymentMethod = value);
             },
             onPaidChanged: () => setState(() {}),
-            onCheckoutComplete: () {
+            onCheckoutComplete: (saleId) {
               setState(() {
                 _selectedOrderId = null;
                 _paymentMethod = 'cash';
@@ -263,7 +264,7 @@ class _CheckoutPanel extends ConsumerWidget {
   final NumberFormat currency;
   final ValueChanged<String> onPaymentMethodChanged;
   final VoidCallback onPaidChanged;
-  final VoidCallback onCheckoutComplete;
+  final ValueChanged<String> onCheckoutComplete;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -280,6 +281,79 @@ class _CheckoutPanel extends ConsumerWidget {
       return const Center(child: Text('Comanda no disponible.'));
     }
     final itemsAsync = ref.watch(posOrderItemsProvider(selectedOrderId!));
+
+    Future<void> showSpinCodeDialog(BuildContext context, String code) async {
+      return showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Codigo de spin'),
+          content: SelectableText(
+            code,
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cerrar'),
+            ),
+            FilledButton.icon(
+              onPressed: () async {
+                await Clipboard.setData(ClipboardData(text: code));
+                if (!context.mounted) return;
+                Navigator.of(context).pop();
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Codigo copiado.')),
+                );
+              },
+              icon: const Icon(Icons.copy_rounded),
+              label: const Text('Copiar'),
+            ),
+          ],
+        ),
+      );
+    }
+
+    Future<void> showPostCheckoutDialog(
+      BuildContext context,
+      String saleId,
+    ) async {
+      return showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Venta registrada'),
+          content: const Text(
+            'Quieres generar un codigo de spin para este cliente?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Cerrar'),
+            ),
+            FilledButton.icon(
+              onPressed: () async {
+                final messenger = ScaffoldMessenger.of(context);
+                try {
+                  final code = await ref
+                      .read(posRepositoryProvider)
+                      .createSpinCode(remainingSpins: 1, saleId: saleId);
+                  if (!context.mounted) return;
+                  Navigator.of(context).pop();
+                  await showSpinCodeDialog(context, code);
+                } catch (error) {
+                  debugPrint('Error creating spin code: $error');
+                  messenger.showSnackBar(
+                    SnackBar(content: Text('Error al crear codigo: $error')),
+                  );
+                }
+              },
+              icon: const Icon(Icons.confirmation_number_rounded),
+              label: const Text('Generar codigo'),
+            ),
+          ],
+        ),
+      );
+    }
 
     return itemsAsync.when(
       data: (items) {
@@ -397,7 +471,8 @@ class _CheckoutPanel extends ConsumerWidget {
                         onPressed: paymentMethod == 'cash' && received < total
                             ? null
                             : () async {
-                                await ref
+                                final messenger = ScaffoldMessenger.of(context);
+                                final saleId = await ref
                                     .read(posRepositoryProvider)
                                     .checkoutOrder(
                                       order: order,
@@ -406,12 +481,13 @@ class _CheckoutPanel extends ConsumerWidget {
                                     );
                                 if (!context.mounted) return;
                                 paidController.clear();
-                                onCheckoutComplete();
-                                ScaffoldMessenger.of(context).showSnackBar(
+                                onCheckoutComplete(saleId);
+                                messenger.showSnackBar(
                                   const SnackBar(
                                     content: Text('Venta registrada.'),
                                   ),
                                 );
+                                await showPostCheckoutDialog(context, saleId);
                               },
                         icon: const Icon(Icons.point_of_sale_rounded),
                         label: Text(
@@ -501,13 +577,45 @@ class _SalesHistory extends StatelessWidget {
                 .take(12)
                 .map(
                   (sale) => Card(
-                    child: ListTile(
-                      dense: true,
+                    child: ExpansionTile(
+                      tilePadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
                       title: Text(sale.saleNumber),
                       subtitle: Text(
                         '${sale.paymentMethod == 'cash' ? 'Efectivo' : 'Transferencia'} · ${dateFormat.format(sale.soldAt)}',
                       ),
                       trailing: Text(currency.format(sale.totalAmount)),
+                      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Items: ${sale.totalUnits}',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            Text(
+                              currency.format(sale.totalAmount),
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                          ],
+                        ),
+                        if (sale.itemsSummary != null &&
+                            sale.itemsSummary!.isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Text(
+                            sale.itemsSummary!,
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                          ),
+                        ],
+                      ],
                     ),
                   ),
                 ),

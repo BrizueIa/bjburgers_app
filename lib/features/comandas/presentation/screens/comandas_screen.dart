@@ -1140,6 +1140,45 @@ class _OrdersQueue extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    String formatDuration(Duration duration) {
+      if (duration.isNegative) duration = Duration.zero;
+      final hours = duration.inHours;
+      final minutes = duration.inMinutes.remainder(60);
+      final seconds = duration.inSeconds.remainder(60);
+      if (hours > 0) {
+        return '${hours.toString().padLeft(2, '0')}:'
+            '${minutes.toString().padLeft(2, '0')}';
+      }
+      return '${minutes.toString().padLeft(2, '0')}:'
+          '${seconds.toString().padLeft(2, '0')}';
+    }
+
+    Widget buildPrepTimer(DateTime startTime) {
+      return StreamBuilder<DateTime>(
+        stream: Stream.periodic(
+          const Duration(seconds: 1),
+          (_) => DateTime.now(),
+        ),
+        builder: (context, snapshot) {
+          final now = snapshot.data ?? DateTime.now();
+          final elapsed = now.difference(startTime);
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.timer_outlined, size: 16),
+              const SizedBox(width: 6),
+              Text(
+                formatDuration(elapsed),
+                style: Theme.of(
+                  context,
+                ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ],
+          );
+        },
+      );
+    }
+
     return ordersAsync.when(
       data: (orders) {
         if (orders.isEmpty) {
@@ -1195,6 +1234,10 @@ class _OrdersQueue extends ConsumerWidget {
                                 '${order.itemCount} productos · ${currency.format(order.totalEstimated)}',
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
+                              if (order.status == 'preparing') ...[
+                                const SizedBox(height: 6),
+                                buildPrepTimer(order.updatedAt),
+                              ],
                               if (order.notes != null) ...[
                                 const SizedBox(height: 10),
                                 Text(order.notes!),
@@ -1387,7 +1430,11 @@ bool _matchesToday(String dayLabel) {
     7: 'Domingo',
   };
 
-  return weekdayLabels[DateTime.now().weekday] == dayLabel;
+  final now = DateTime.now();
+  final effectiveDay = now.hour < 2
+      ? now.subtract(const Duration(days: 1))
+      : now;
+  return weekdayLabels[effectiveDay.weekday] == dayLabel;
 }
 
 Future<List<String>> _showCustomizationDialog(
