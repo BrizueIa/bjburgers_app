@@ -552,74 +552,166 @@ class _CheckoutHeader extends StatelessWidget {
   }
 }
 
-class _SalesHistory extends StatelessWidget {
+class _SalesHistory extends ConsumerWidget {
   const _SalesHistory({required this.currency, required this.salesAsync});
 
   final NumberFormat currency;
   final AsyncValue<List<SaleSummary>> salesAsync;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final dateFormat = DateFormat('dd/MM HH:mm');
     return salesAsync.when(
-      data: (sales) => ListView(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
-        children: [
-          Text(
-            'Ventas recientes',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          if (sales.isEmpty)
-            const SizedBox.shrink()
-          else
-            ...sales
-                .take(12)
-                .map(
-                  (sale) => Card(
-                    child: ExpansionTile(
-                      tilePadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
-                      ),
-                      title: Text(sale.saleNumber),
-                      subtitle: Text(
-                        '${sale.paymentMethod == 'cash' ? 'Efectivo' : 'Transferencia'} · ${dateFormat.format(sale.soldAt)}',
-                      ),
-                      trailing: Text(currency.format(sale.totalAmount)),
-                      childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
+      data: (sales) => RefreshIndicator(
+        onRefresh: () async {
+          ref.invalidate(salesHistoryProvider);
+          await Future.delayed(const Duration(milliseconds: 200));
+        },
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+          children: [
+            Text(
+              'Ventas recientes',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            if (sales.isEmpty)
+              const SizedBox.shrink()
+            else
+              ...sales
+                  .take(12)
+                  .map(
+                    (sale) => Card(
+                      child: ExpansionTile(
+                        tilePadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 4,
+                        ),
+                        title: Text(sale.saleNumber),
+                        subtitle: Text(
+                          '${sale.paymentMethod == 'cash' ? 'Efectivo' : 'Transferencia'} · ${dateFormat.format(sale.soldAt)}',
+                        ),
+                        trailing: Text(currency.format(sale.totalAmount)),
+                        childrenPadding: const EdgeInsets.fromLTRB(
+                          16,
+                          0,
+                          16,
+                          12,
+                        ),
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Items: ${sale.totalUnits}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                              Text(
+                                currency.format(sale.totalAmount),
+                                style: Theme.of(context).textTheme.titleSmall,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Consumer(
+                            builder: (context, ref, child) {
+                              final spinAsync = ref.watch(
+                                spinCodeBySaleProvider(sale.id),
+                              );
+                              return spinAsync.when(
+                                data: (spin) {
+                                  if (spin == null) {
+                                    return Text(
+                                      'Ruleta: sin codigo',
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .bodySmall
+                                          ?.copyWith(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.onSurfaceVariant,
+                                          ),
+                                    );
+                                  }
+                                  final status = spin.isConsumed
+                                      ? 'Premio aplicado'
+                                      : 'Codigo activo';
+                                  return Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Ruleta: ${spin.code}',
+                                        style: Theme.of(
+                                          context,
+                                        ).textTheme.bodySmall,
+                                      ),
+                                      Text(
+                                        status,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: spin.isConsumed
+                                                  ? Colors.green
+                                                  : Theme.of(context)
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
+                                            ),
+                                      ),
+                                      if (spin.isConsumed)
+                                        Text(
+                                          spin.prizeLabel ?? '- ',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                    ],
+                                  );
+                                },
+                                loading: () => Text(
+                                  'Ruleta: cargando...',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.onSurfaceVariant,
+                                      ),
+                                ),
+                                error: (error, stackTrace) => Text(
+                                  'Ruleta: error al cargar',
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.error,
+                                      ),
+                                ),
+                              );
+                            },
+                          ),
+                          if (sale.itemsSummary != null &&
+                              sale.itemsSummary!.isNotEmpty) ...[
+                            const SizedBox(height: 8),
                             Text(
-                              'Items: ${sale.totalUnits}',
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                            Text(
-                              currency.format(sale.totalAmount),
-                              style: Theme.of(context).textTheme.titleSmall,
+                              sale.itemsSummary!,
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onSurfaceVariant,
+                                  ),
                             ),
                           ],
-                        ),
-                        if (sale.itemsSummary != null &&
-                            sale.itemsSummary!.isNotEmpty) ...[
-                          const SizedBox(height: 8),
-                          Text(
-                            sale.itemsSummary!,
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                          ),
                         ],
-                      ],
+                      ),
                     ),
                   ),
-                ),
-        ],
+          ],
+        ),
       ),
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stackTrace) => Center(child: Text('$error')),

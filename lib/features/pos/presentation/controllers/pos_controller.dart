@@ -13,3 +13,10 @@ final posOrderItemsProvider = StreamProvider.family((ref, String orderId) {
 final salesHistoryProvider = StreamProvider((ref) {
   return ref.watch(posRepositoryProvider).watchSales();
 });
+
+final spinCodeBySaleProvider = FutureProvider.family<SpinCodeStatus?, String>((
+  ref,
+  saleId,
+) {
+  return ref.watch(posRepositoryProvider).fetchSpinCodeForSale(saleId);
+});

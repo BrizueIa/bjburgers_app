@@ -37,6 +37,18 @@ class SaleSummary {
   final int totalUnits;
 }
 
+class SpinCodeStatus {
+  const SpinCodeStatus({
+    required this.code,
+    required this.prizeLabel,
+    required this.isConsumed,
+  });
+
+  final String code;
+  final String? prizeLabel;
+  final bool isConsumed;
+}
+
 class PosRepository {
   PosRepository(
     this._database,
@@ -282,6 +294,10 @@ class PosRepository {
       throw StateError('Supabase no configurado.');
     }
 
+    if (saleId != null) {
+      await _ensureSaleOnSupabase(saleId, client);
+    }
+
     for (var attempt = 0; attempt < 5; attempt += 1) {
       final code = _buildSpinCode();
       try {
@@ -300,23 +316,79 @@ class PosRepository {
         if (error.code == '23505') {
           continue;
         }
-        if (error.code == '23503' && saleId != null) {
-          final response = await client
-              .from('spin_codes')
-              .insert({
-                'code': code,
-                'remaining_spins': remainingSpins,
-                'is_active': true,
-              })
-              .select('code')
-              .single();
-          return response['code'] as String;
-        }
         rethrow;
       }
     }
 
     throw StateError('No se pudo generar el codigo.');
+  }
+
+  Future<void> _ensureSaleOnSupabase(
+    String saleId,
+    SupabaseClient client,
+  ) async {
+    final sale = await (_database.select(
+      _database.sales,
+    )..where((table) => table.id.equals(saleId))).getSingleOrNull();
+    if (sale == null) {
+      throw StateError('No se encontro la venta para vincular el codigo.');
+    }
+
+    if (sale.sourceOrderId != null) {
+      final order =
+          await (_database.select(_database.orders)
+                ..where((table) => table.id.equals(sale.sourceOrderId!)))
+              .getSingleOrNull();
+      if (order != null) {
+        await client.from('orders').upsert({
+          'id': order.id,
+          'order_number': order.orderNumber,
+          'status': order.status,
+          'notes': order.notes,
+          'total_estimated': order.totalEstimated,
+          'created_at': order.createdAt.toUtc().toIso8601String(),
+          'updated_at': order.updatedAt.toUtc().toIso8601String(),
+        }, onConflict: 'id');
+      }
+    }
+
+    final now = DateTime.now().toUtc().toIso8601String();
+    await client.from('sales').upsert({
+      'id': sale.id,
+      'sale_number': sale.saleNumber,
+      'source_order_id': sale.sourceOrderId,
+      'total_amount': sale.totalAmount,
+      'estimated_cost': sale.estimatedCost,
+      'estimated_profit': sale.estimatedProfit,
+      'payment_method': sale.paymentMethod,
+      'paid_amount': sale.paidAmount,
+      'change_amount': sale.changeAmount,
+      'sold_at': sale.soldAt.toUtc().toIso8601String(),
+      'created_at': sale.createdAt.toUtc().toIso8601String(),
+      'updated_at': now,
+    }, onConflict: 'id');
+  }
+
+  Future<SpinCodeStatus?> fetchSpinCodeForSale(String saleId) async {
+    final client = _supabaseClient;
+    if (client == null) return null;
+
+    final response = await client
+        .from('spin_codes')
+        .select('code, prize_label, created_at')
+        .eq('sale_id', saleId)
+        .order('created_at', ascending: false)
+        .limit(1)
+        .maybeSingle();
+
+    if (response == null) return null;
+
+    final prizeLabel = response['prize_label'] as String?;
+    return SpinCodeStatus(
+      code: response['code'] as String,
+      prizeLabel: prizeLabel,
+      isConsumed: prizeLabel != null && prizeLabel.isNotEmpty,
+    );
   }
 
   String _buildSpinCode() {
