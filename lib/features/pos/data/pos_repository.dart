@@ -354,45 +354,52 @@ class PosRepository {
   }
 
   Future<void> _consumeExtraStock(OrderItem item, DateTime now) async {
-    final extraProductId = extractExtraProductId(item.notes);
-    if (extraProductId == null || extraProductId.isEmpty) return;
+    final extraProductIds = extractExtraProductIds(item.notes);
+    if (extraProductIds.isEmpty) return;
 
-    final extraProduct = await (_database.select(
-      _database.products,
-    )..where((table) => table.id.equals(extraProductId))).getSingleOrNull();
-    if (extraProduct == null || extraProduct.deletedAt != null) return;
-    if (extraProduct.productType != 'simple' || !extraProduct.trackStock) {
-      return;
+    for (final extraProductId in extraProductIds) {
+      if (extraProductId.isEmpty) continue;
+
+      final extraProduct = await (_database.select(
+        _database.products,
+      )..where((table) => table.id.equals(extraProductId))).getSingleOrNull();
+      if (extraProduct == null || extraProduct.deletedAt != null) continue;
+      if (extraProduct.productType != 'simple' || !extraProduct.trackStock) {
+        continue;
+      }
+
+      final nextStock = ((extraProduct.stockQuantity ?? 0) - item.quantity)
+          .clamp(0, 9999999)
+          .toDouble();
+      await (_database.update(
+        _database.products,
+      )..where((table) => table.id.equals(extraProduct.id))).write(
+        ProductsCompanion(
+          stockQuantity: Value(nextStock),
+          updatedAt: Value(now),
+        ),
+      );
+      await _syncQueueService.enqueue(
+        entityType: 'products',
+        entityId: extraProduct.id,
+        operationType: 'upsert',
+        payload: {
+          'id': extraProduct.id,
+          'name': extraProduct.name,
+          'category_name': extraProduct.categoryName,
+          'product_type': extraProduct.productType,
+          'sale_price': extraProduct.salePrice,
+          'direct_cost': extraProduct.directCost,
+          'stock_quantity': nextStock,
+          'track_stock': extraProduct.trackStock,
+          'display_order': extraProduct.displayOrder,
+          'is_active': extraProduct.isActive,
+          'created_at': extraProduct.createdAt.toUtc().toIso8601String(),
+          'updated_at': now.toUtc().toIso8601String(),
+          'deleted_at': extraProduct.deletedAt?.toUtc().toIso8601String(),
+        },
+      );
     }
-
-    final nextStock = ((extraProduct.stockQuantity ?? 0) - item.quantity)
-        .clamp(0, 9999999)
-        .toDouble();
-    await (_database.update(
-      _database.products,
-    )..where((table) => table.id.equals(extraProduct.id))).write(
-      ProductsCompanion(stockQuantity: Value(nextStock), updatedAt: Value(now)),
-    );
-    await _syncQueueService.enqueue(
-      entityType: 'products',
-      entityId: extraProduct.id,
-      operationType: 'upsert',
-      payload: {
-        'id': extraProduct.id,
-        'name': extraProduct.name,
-        'category_name': extraProduct.categoryName,
-        'product_type': extraProduct.productType,
-        'sale_price': extraProduct.salePrice,
-        'direct_cost': extraProduct.directCost,
-        'stock_quantity': nextStock,
-        'track_stock': extraProduct.trackStock,
-        'display_order': extraProduct.displayOrder,
-        'is_active': extraProduct.isActive,
-        'created_at': extraProduct.createdAt.toUtc().toIso8601String(),
-        'updated_at': now.toUtc().toIso8601String(),
-        'deleted_at': extraProduct.deletedAt?.toUtc().toIso8601String(),
-      },
-    );
   }
 }
 

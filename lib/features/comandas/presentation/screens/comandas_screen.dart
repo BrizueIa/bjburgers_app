@@ -36,15 +36,14 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
     );
     if (!mounted) return;
 
-    final availableExtras = products
-        .where(
-          (item) =>
-              item.productType == 'simple' &&
-              item.trackStock &&
-              item.id != product.id,
-        )
-        .toList();
-    final selectedExtra = await _showExtraSelectionDialog(
+    final availableExtras = products.where((item) {
+      if (item.productType != 'simple' || item.id == product.id) {
+        return false;
+      }
+      final categoryName = item.categoryName?.toString() ?? '';
+      return item.trackStock || categoryName == 'Extras';
+    }).toList();
+    final selectedExtras = await _showExtrasSelectionDialog(
       context,
       availableExtras,
       productName: product.name,
@@ -60,16 +59,28 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
           productName: product.name,
           unitPrice:
               (overrideUnitPrice ?? product.salePrice) +
-              ((selectedExtra?.salePrice as double?) ?? 0),
+              selectedExtras.fold<double>(
+                0,
+                (sum, extra) => sum + (extra.salePrice as double? ?? 0),
+              ),
           baseCost:
               product.calculatedCost +
-              ((selectedExtra?.calculatedCost as double?) ?? 0),
+              selectedExtras.fold<double>(
+                0,
+                (sum, extra) => sum + (extra.calculatedCost as double? ?? 0),
+              ),
           quantity: 1,
           comboLabel: comboLabel,
           notes: buildOrderItemNotes(
             baseNotes: draftNote ?? comboLabel,
-            extraProductId: selectedExtra?.id as String?,
-            extraProductName: selectedExtra?.name as String?,
+            extras: selectedExtras
+                .map<OrderExtraNote>(
+                  (extra) => OrderExtraNote(
+                    id: extra.id as String,
+                    name: extra.name as String,
+                  ),
+                )
+                .toList(),
           ),
           removedIngredients: removedIngredients,
         ),
@@ -1364,23 +1375,23 @@ Future<List<String>> _showCustomizationDialog(
   return result ?? const <String>[];
 }
 
-Future<dynamic> _showExtraSelectionDialog(
+Future<List<dynamic>> _showExtrasSelectionDialog(
   BuildContext context,
   List<dynamic> extras, {
   required String productName,
   String? comboLabel,
 }) async {
-  if (extras.isEmpty) return null;
+  if (extras.isEmpty) return const [];
 
-  dynamic selectedExtra;
-  return showDialog<dynamic>(
+  final selected = <dynamic>{};
+  final result = await showDialog<List<dynamic>>(
     context: context,
     builder: (context) => StatefulBuilder(
       builder: (context, setState) => AlertDialog(
         title: Text(
           comboLabel == null
-              ? 'Extra para $productName'
-              : '$comboLabel · Extra',
+              ? 'Extras para $productName'
+              : '$comboLabel · Extras',
         ),
         content: SizedBox(
           width: 360,
@@ -1389,13 +1400,13 @@ Future<dynamic> _showExtraSelectionDialog(
             children: [
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: const Text('Sin extra'),
+                title: const Text('Sin extras'),
                 leading: Icon(
-                  selectedExtra == null
+                  selected.isEmpty
                       ? Icons.radio_button_checked_rounded
                       : Icons.radio_button_off_rounded,
                 ),
-                onTap: () => setState(() => selectedExtra = null),
+                onTap: () => setState(() => selected.clear()),
               ),
               const SizedBox(height: 4),
               for (final extra in extras)
@@ -1409,26 +1420,35 @@ Future<dynamic> _showExtraSelectionDialog(
                     ).format(extra.salePrice),
                   ),
                   leading: Icon(
-                    identical(selectedExtra, extra)
-                        ? Icons.radio_button_checked_rounded
-                        : Icons.radio_button_off_rounded,
+                    selected.contains(extra)
+                        ? Icons.check_box_rounded
+                        : Icons.check_box_outline_blank_rounded,
                   ),
-                  onTap: () => setState(() => selectedExtra = extra),
+                  onTap: () {
+                    setState(() {
+                      if (selected.contains(extra)) {
+                        selected.remove(extra);
+                      } else {
+                        selected.add(extra);
+                      }
+                    });
+                  },
                 ),
             ],
           ),
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(context).pop(null),
+            onPressed: () => Navigator.of(context).pop(const []),
             child: const Text('Omitir'),
           ),
           FilledButton(
-            onPressed: () => Navigator.of(context).pop(selectedExtra),
+            onPressed: () => Navigator.of(context).pop(selected.toList()),
             child: const Text('Agregar'),
           ),
         ],
       ),
     ),
   );
+  return result ?? const [];
 }
