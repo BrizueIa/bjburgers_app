@@ -78,6 +78,7 @@ class PosRepository {
           (rows) => rows
               .map(
                 (row) => OrderSummary(
+                  updatedAt: row.read<DateTime>('created_at'),
                   id: row.read<String>('id'),
                   orderNumber: row.read<String>('order_number'),
                   status: row.read<String>('status'),

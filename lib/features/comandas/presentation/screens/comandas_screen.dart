@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../app/widgets/ui_cards.dart';
@@ -261,27 +262,95 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
 
           return DefaultTabController(
             length: 2,
-            child: Column(
-              children: [
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
-                  child: TabBar(
-                    dividerColor: Colors.transparent,
-                    tabs: [
-                      Tab(text: 'Nueva'),
-                      Tab(text: 'Preparacion'),
-                    ],
-                  ),
-                ),
-                Expanded(
-                  child: TabBarView(
-                    children: [
-                      RefreshIndicator(onRefresh: refreshData, child: composer),
-                      RefreshIndicator(onRefresh: refreshData, child: queue),
-                    ],
-                  ),
-                ),
-              ],
+            child: Builder(
+              builder: (context) {
+                final tabController = DefaultTabController.of(context);
+                return Column(
+                  children: [
+                    const Padding(
+                      padding: EdgeInsets.fromLTRB(16, 0, 16, 0),
+                      child: TabBar(
+                        dividerColor: Colors.transparent,
+                        tabs: [
+                          Tab(text: 'Nueva'),
+                          Tab(text: 'Preparacion'),
+                        ],
+                      ),
+                    ),
+                    Expanded(
+                      child: TabBarView(
+                        children: [
+                          RefreshIndicator(
+                            onRefresh: refreshData,
+                            child: _CommandComposer(
+                              productsAsync: productsAsync,
+                              draftItems: _draftItems,
+                              notesController: _notesController,
+                              draftTotal: _draftTotal,
+                              currency: currency,
+                              compact: true,
+                              promoPresets: settings.promoConfigs,
+                              onAddProduct: _addProductDraft,
+                              onAddPromo: (promo, products) =>
+                                  _addPromotion(promo, products),
+                              onSaveOrder: () async {
+                                if (_draftItems.isEmpty) return;
+                                final confirmed = await showDialog<bool>(
+                                  context: context,
+                                  builder: (context) => _ConfirmOrderDialog(
+                                    draftItems: _draftItems,
+                                    notesController: _notesController,
+                                    onRemoveItem: (index) {
+                                      if (index < 0 ||
+                                          index >= _draftItems.length) {
+                                        return;
+                                      }
+                                      setState(() {
+                                        _draftItems.removeAt(index);
+                                      });
+                                    },
+                                    onCancelOrder: () {
+                                      setState(() {
+                                        _draftItems.clear();
+                                        _notesController.clear();
+                                      });
+                                    },
+                                  ),
+                                );
+                                if (!mounted || confirmed != true) return;
+
+                                await ref
+                                    .read(comandasRepositoryProvider)
+                                    .createOrder(
+                                      notes: _notesController.text.trim(),
+                                      items: List<OrderDraftItem>.from(
+                                        _draftItems,
+                                      ),
+                                    );
+                                if (!context.mounted) return;
+                                setState(() {
+                                  _draftItems.clear();
+                                  _notesController.clear();
+                                });
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(
+                                    content: Text('Comanda creada.'),
+                                  ),
+                                );
+                                tabController.animateTo(1);
+                              },
+                            ),
+                          ),
+                          RefreshIndicator(
+                            onRefresh: refreshData,
+                            child: queue,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           );
         },
@@ -1357,9 +1426,13 @@ class _OrdersQueue extends ConsumerWidget {
                           ),
                         if (order.status == 'preparing')
                           FilledButton(
-                            onPressed: () => ref
-                                .read(comandasRepositoryProvider)
-                                .updateOrderStatus(order.id, 'ready'),
+                            onPressed: () async {
+                              await ref
+                                  .read(comandasRepositoryProvider)
+                                  .updateOrderStatus(order.id, 'ready');
+                              if (!context.mounted) return;
+                              context.go('/pos');
+                            },
                             child: const Text('Pasar a POS'),
                           ),
                         if (order.status != 'delivered' &&
