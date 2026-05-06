@@ -53,8 +53,18 @@ class ReportesScreen extends ConsumerWidget {
           children: [
             _ReportRangeSelector(
               selectedRange: selectedRange,
-              onChanged: (selection) {
-                ref.read(reportRangeProvider.notifier).state = selection;
+              onChangedPreset: (preset) {
+                ref.read(reportRangeProvider.notifier).state =
+                    ReportRangeSelection(preset: preset, offset: 0);
+              },
+              onMovePrevious: () {
+                ref.read(reportRangeProvider.notifier).state = selectedRange
+                    .copyWith(offset: selectedRange.offset + 1);
+              },
+              onMoveNext: () {
+                if (selectedRange.offset == 0) return;
+                ref.read(reportRangeProvider.notifier).state = selectedRange
+                    .copyWith(offset: selectedRange.offset - 1);
               },
             ),
             const SizedBox(height: 14),
@@ -95,6 +105,18 @@ class ReportesScreen extends ConsumerWidget {
                     title: 'Hora pico',
                     value: report.peakHourLabel,
                     icon: Icons.schedule_rounded,
+                    compact: isMobile,
+                  ),
+                  _KpiCard(
+                    title: 'Ahorro',
+                    value: currency.format(report.ahorroTotal),
+                    icon: Icons.savings_rounded,
+                    compact: isMobile,
+                  ),
+                  _KpiCard(
+                    title: 'Guardadito',
+                    value: currency.format(report.guardaditoTotal),
+                    icon: Icons.account_balance_wallet_rounded,
                     compact: isMobile,
                   ),
                 ];
@@ -269,8 +291,10 @@ class _FlowOverviewCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final maxAmount = [
       report.totalSales,
-      report.totalPurchases,
-      report.estimatedProfit,
+      report.cashNetSales,
+      report.transferNetSales,
+      report.ahorroTotal,
+      report.guardaditoTotal,
     ].fold<double>(1, (current, value) => value > current ? value : current);
 
     return Card(
@@ -289,18 +313,32 @@ class _FlowOverviewCard extends StatelessWidget {
               text: currency.format(report.totalSales),
             ),
             _FlowBar(
-              label: 'Compras',
-              value: report.totalPurchases,
+              label: 'Efectivo neto',
+              value: report.cashNetSales,
               maxValue: maxAmount,
-              color: const Color(0xFFC98B2E),
-              text: currency.format(report.totalPurchases),
+              color: const Color(0xFF7A2E12),
+              text: currency.format(report.cashNetSales),
             ),
             _FlowBar(
-              label: 'Utilidad',
-              value: report.estimatedProfit,
+              label: 'Transferencia neta',
+              value: report.transferNetSales,
+              maxValue: maxAmount,
+              color: const Color(0xFF1E5A7A),
+              text: currency.format(report.transferNetSales),
+            ),
+            _FlowBar(
+              label: 'Ahorro',
+              value: report.ahorroTotal,
               maxValue: maxAmount,
               color: const Color(0xFF3E9B47),
-              text: currency.format(report.estimatedProfit),
+              text: currency.format(report.ahorroTotal),
+            ),
+            _FlowBar(
+              label: 'Guardadito',
+              value: report.guardaditoTotal,
+              maxValue: maxAmount,
+              color: const Color(0xFFC98B2E),
+              text: currency.format(report.guardaditoTotal),
             ),
           ],
         ),
@@ -507,34 +545,65 @@ class _HighlightPill extends StatelessWidget {
 class _ReportRangeSelector extends StatelessWidget {
   const _ReportRangeSelector({
     required this.selectedRange,
-    required this.onChanged,
+    required this.onChangedPreset,
+    required this.onMovePrevious,
+    required this.onMoveNext,
   });
 
-  final ReportRangePreset selectedRange;
-  final ValueChanged<ReportRangePreset> onChanged;
+  final ReportRangeSelection selectedRange;
+  final ValueChanged<ReportRangePreset> onChangedPreset;
+  final VoidCallback onMovePrevious;
+  final VoidCallback onMoveNext;
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Row(
-        children: [
-          for (final range in const [
-            ReportRangePreset.today,
-            ReportRangePreset.yesterday,
-            ReportRangePreset.week,
-            ReportRangePreset.month,
-          ])
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(_rangeLabel(range)),
-                selected: selectedRange == range,
-                onSelected: (_) => onChanged(range),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final range in const [
+                ReportRangePreset.today,
+                ReportRangePreset.week,
+                ReportRangePreset.month,
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(_rangeLabel(range)),
+                    selected: selectedRange.preset == range,
+                    onSelected: (_) => onChangedPreset(range),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            IconButton(
+              onPressed: onMovePrevious,
+              icon: const Icon(Icons.chevron_left_rounded),
+              tooltip: 'Anterior',
+            ),
+            Expanded(
+              child: Text(
+                selectedRange.offset == 0
+                    ? 'Periodo actual'
+                    : 'Periodo anterior #${selectedRange.offset}',
+                textAlign: TextAlign.center,
               ),
             ),
-        ],
-      ),
+            IconButton(
+              onPressed: selectedRange.offset == 0 ? null : onMoveNext,
+              icon: const Icon(Icons.chevron_right_rounded),
+              tooltip: 'Siguiente',
+            ),
+          ],
+        ),
+      ],
     );
   }
 }
@@ -562,8 +631,8 @@ class _ReportTopStrip extends StatelessWidget {
         const SizedBox(width: 8),
         Expanded(
           child: AppMiniStatCard(
-            label: 'Caja',
-            value: currency.format(report.cashSales),
+            label: 'Efectivo neto',
+            value: currency.format(report.cashNetSales),
           ),
         ),
       ],
@@ -575,8 +644,6 @@ String _rangeLabel(ReportRangePreset range) {
   switch (range) {
     case ReportRangePreset.today:
       return 'Hoy';
-    case ReportRangePreset.yesterday:
-      return 'Ayer';
     case ReportRangePreset.week:
       return 'Semana';
     case ReportRangePreset.month:
@@ -776,6 +843,10 @@ String _buildReportShareText(ReportSnapshot report, NumberFormat currency) {
     'Utilidad estimada: ${currency.format(report.estimatedProfit)}',
     'Efectivo: ${currency.format(report.cashSales)}',
     'Transferencias: ${currency.format(report.transferSales)}',
+    'Efectivo neto: ${currency.format(report.cashNetSales)}',
+    'Transferencias netas: ${currency.format(report.transferNetSales)}',
+    'Ahorro: ${currency.format(report.ahorroTotal)}',
+    'Guardadito: ${currency.format(report.guardaditoTotal)}',
     'Compras: ${currency.format(report.totalPurchases)}',
     'Pedidos: ${report.totalOrders}',
     'Ventas cobradas: ${report.totalSalesCount}',

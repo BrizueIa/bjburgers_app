@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/database/app_database.dart';
 import '../../../core/database/app_database_provider.dart';
 
-enum ReportRangePreset { today, yesterday, week, month }
+enum ReportRangePreset { today, week, month }
 
 class ReportDateRange {
   const ReportDateRange({
@@ -17,31 +17,55 @@ class ReportDateRange {
   final DateTime end;
   final String label;
 
-  factory ReportDateRange.fromPreset(ReportRangePreset preset) {
+  factory ReportDateRange.fromPreset(
+    ReportRangePreset preset, {
+    int offset = 0,
+  }) {
     final now = DateTime.now();
     final todayStart = DateTime(now.year, now.month, now.day);
     switch (preset) {
       case ReportRangePreset.today:
-        return ReportDateRange(start: todayStart, end: now, label: 'Hoy');
-      case ReportRangePreset.yesterday:
-        final yesterdayStart = todayStart.subtract(const Duration(days: 1));
+        final targetStart = todayStart.subtract(Duration(days: offset));
+        final targetEnd = targetStart.add(const Duration(days: 1));
+        final isCurrentDay = offset == 0;
         return ReportDateRange(
-          start: yesterdayStart,
-          end: todayStart.subtract(const Duration(milliseconds: 1)),
-          label: 'Ayer',
+          start: targetStart,
+          end: isCurrentDay
+              ? now
+              : targetEnd.subtract(const Duration(milliseconds: 1)),
+          label: isCurrentDay ? 'Hoy' : 'Hace $offset dia(s)',
         );
       case ReportRangePreset.week:
-        final weekStart = todayStart.subtract(
+        final currentWeekStart = todayStart.subtract(
           Duration(days: todayStart.weekday - 1),
         );
+        final weekStart = currentWeekStart.subtract(Duration(days: 7 * offset));
+        final weekEnd = weekStart.add(const Duration(days: 7));
+        final isCurrentWeek = offset == 0;
         return ReportDateRange(
           start: weekStart,
-          end: now,
-          label: 'Esta semana',
+          end: isCurrentWeek
+              ? now
+              : weekEnd.subtract(const Duration(milliseconds: 1)),
+          label: isCurrentWeek ? 'Esta semana' : 'Semana -$offset',
         );
       case ReportRangePreset.month:
-        final monthStart = DateTime(now.year, now.month, 1);
-        return ReportDateRange(start: monthStart, end: now, label: 'Este mes');
+        final monthStart = DateTime(now.year, now.month - offset, 1);
+        final nextMonthStart = DateTime(
+          monthStart.year,
+          monthStart.month + 1,
+          1,
+        );
+        final isCurrentMonth = offset == 0;
+        return ReportDateRange(
+          start: monthStart,
+          end: isCurrentMonth
+              ? now
+              : nextMonthStart.subtract(const Duration(milliseconds: 1)),
+          label: isCurrentMonth
+              ? 'Este mes'
+              : '${monthStart.month.toString().padLeft(2, '0')}/${monthStart.year}',
+        );
     }
   }
 }
@@ -140,6 +164,10 @@ class ReportSnapshot {
     required this.promos,
     required this.cashSessions,
     required this.salesDetails,
+    required this.ahorroTotal,
+    required this.guardaditoTotal,
+    required this.transferNetSales,
+    required this.cashNetSales,
   });
 
   final ReportDateRange range;
@@ -159,6 +187,10 @@ class ReportSnapshot {
   final List<PromoReportRow> promos;
   final List<CashReportRow> cashSessions;
   final List<SaleDetailReportRow> salesDetails;
+  final double ahorroTotal;
+  final double guardaditoTotal;
+  final double transferNetSales;
+  final double cashNetSales;
 }
 
 class ReportesRepository {
@@ -350,19 +382,34 @@ class ReportesRepository {
         )
         .get();
 
+    final totalSalesCount = salesRow.read<int>('total_sales_count');
+    final cashSales = salesRow.read<double>('cash_sales');
+    final transferSales = salesRow.read<double>('transfer_sales');
+    final ahorroTotal = (totalSalesCount * 50).toDouble();
+    final guardaditoTotal = (totalSalesCount * 10).toDouble();
+    final savingsTotal = ahorroTotal + guardaditoTotal;
+    final transferNetSales = (transferSales - savingsTotal)
+        .clamp(0, transferSales)
+        .toDouble();
+    final cashSavingsNeeded = (savingsTotal - transferSales)
+        .clamp(0, savingsTotal)
+        .toDouble();
+    final cashNetSales = (cashSales - cashSavingsNeeded)
+        .clamp(0, cashSales)
+        .toDouble();
+
     return ReportSnapshot(
       range: range,
       totalSales: salesRow.read<double>('total_sales'),
-      cashSales: salesRow.read<double>('cash_sales'),
-      transferSales: salesRow.read<double>('transfer_sales'),
+      cashSales: cashSales,
+      transferSales: transferSales,
       totalPurchases: purchasesRow.read<double>('total_purchases'),
       estimatedProfit: salesRow.read<double>('estimated_profit'),
       totalOrders: ordersRow.read<int>('total_orders'),
-      totalSalesCount: salesRow.read<int>('total_sales_count'),
-      averageTicket: salesRow.read<int>('total_sales_count') == 0
+      totalSalesCount: totalSalesCount,
+      averageTicket: totalSalesCount == 0
           ? 0
-          : salesRow.read<double>('total_sales') /
-                salesRow.read<int>('total_sales_count'),
+          : salesRow.read<double>('total_sales') / totalSalesCount,
       peakHourLabel: peakHourRow == null
           ? 'Sin datos'
           : _readString(peakHourRow, 'hour_label'),
@@ -437,6 +484,10 @@ class ReportesRepository {
             ),
           )
           .toList(),
+      ahorroTotal: ahorroTotal,
+      guardaditoTotal: guardaditoTotal,
+      transferNetSales: transferNetSales,
+      cashNetSales: cashNetSales,
     );
   }
 }
