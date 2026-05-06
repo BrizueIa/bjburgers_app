@@ -28,14 +28,12 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
     String? draftNote,
     double? overrideUnitPrice,
   }) async {
-    final removedIngredients = product.productType == 'recipe'
-        ? await _showCustomizationDialog(
-            context,
-            ref,
-            product,
-            comboLabel: comboLabel,
-          )
-        : const <String>[];
+    final removedIngredients = await _showCustomizationDialog(
+      context,
+      ref,
+      product,
+      comboLabel: comboLabel,
+    );
     if (!mounted) return;
 
     final availableExtras = products
@@ -193,8 +191,19 @@ class _ComandasScreenState extends ConsumerState<ComandasScreen> {
                 builder: (context) => _ConfirmOrderDialog(
                   draftItems: _draftItems,
                   notesController: _notesController,
-                  draftTotal: _draftTotal,
                   currency: currency,
+                  onRemoveItem: (index) {
+                    if (index < 0 || index >= _draftItems.length) return;
+                    setState(() {
+                      _draftItems.removeAt(index);
+                    });
+                  },
+                  onCancelOrder: () {
+                    setState(() {
+                      _draftItems.clear();
+                      _notesController.clear();
+                    });
+                  },
                 ),
               );
               if (!mounted || confirmed != true) return;
@@ -658,19 +667,24 @@ class _OrderSummaryCard extends StatelessWidget {
   const _OrderSummaryCard({
     required this.draftItems,
     required this.notesController,
-    required this.draftTotal,
     required this.currency,
     required this.compact,
+    this.onRemoveItem,
   });
 
   final List<OrderDraftItem> draftItems;
   final TextEditingController notesController;
-  final double draftTotal;
   final NumberFormat currency;
   final bool compact;
+  final void Function(int index)? onRemoveItem;
 
   @override
   Widget build(BuildContext context) {
+    final draftTotal = draftItems.fold<double>(
+      0,
+      (sum, item) => sum + (item.unitPrice * item.quantity),
+    );
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -762,19 +776,36 @@ class _OrderSummaryCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Theme.of(context).colorScheme.surface,
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          '${entry.value.quantity}',
-                          style: Theme.of(context).textTheme.titleSmall,
-                        ),
+                      Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 6,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Theme.of(context).colorScheme.surface,
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              '${entry.value.quantity}',
+                              style: Theme.of(context).textTheme.titleSmall,
+                            ),
+                          ),
+                          if (onRemoveItem != null) ...[
+                            const SizedBox(height: 6),
+                            IconButton(
+                              visualDensity: VisualDensity.compact,
+                              icon: const Icon(
+                                Icons.remove_circle_outline_rounded,
+                              ),
+                              tooltip: 'Quitar producto',
+                              color: Theme.of(context).colorScheme.error,
+                              onPressed: () => onRemoveItem?.call(entry.key),
+                            ),
+                          ],
+                        ],
                       ),
                     ],
                   ),
@@ -879,14 +910,16 @@ class _ConfirmOrderDialog extends StatelessWidget {
   const _ConfirmOrderDialog({
     required this.draftItems,
     required this.notesController,
-    required this.draftTotal,
     required this.currency,
+    this.onRemoveItem,
+    this.onCancelOrder,
   });
 
   final List<OrderDraftItem> draftItems;
   final TextEditingController notesController;
-  final double draftTotal;
   final NumberFormat currency;
+  final void Function(int index)? onRemoveItem;
+  final VoidCallback? onCancelOrder;
 
   @override
   Widget build(BuildContext context) {
@@ -895,18 +928,26 @@ class _ConfirmOrderDialog extends StatelessWidget {
       content: SizedBox(
         width: 420,
         child: SingleChildScrollView(
-          child: _OrderSummaryCard(
-            draftItems: draftItems,
-            notesController: notesController,
-            draftTotal: draftTotal,
-            currency: currency,
-            compact: true,
+          child: StatefulBuilder(
+            builder: (context, setState) => _OrderSummaryCard(
+              draftItems: draftItems,
+              notesController: notesController,
+              currency: currency,
+              compact: true,
+              onRemoveItem: (index) {
+                onRemoveItem?.call(index);
+                setState(() {});
+              },
+            ),
           ),
         ),
       ),
       actions: [
         TextButton(
-          onPressed: () => Navigator.of(context).pop(false),
+          onPressed: () {
+            onCancelOrder?.call();
+            Navigator.of(context).pop(false);
+          },
           child: const Text('Cancelar'),
         ),
         FilledButton(
