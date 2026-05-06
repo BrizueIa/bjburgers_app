@@ -23,6 +23,7 @@ class CashSessionSummary {
     required this.manualDeposits,
     required this.manualWithdrawals,
     required this.manualAdjustments,
+    required this.salesCount,
   });
 
   final String id;
@@ -40,12 +41,30 @@ class CashSessionSummary {
   final double manualDeposits;
   final double manualWithdrawals;
   final double manualAdjustments;
+  final int salesCount;
 
   bool get isOpen => status == 'open';
 
+  double get totalSales => cashSalesTotal + transferSalesTotal;
+
+  double get ahorroTotal => salesCount * 50;
+
+  double get guardaditoTotal => salesCount * 10;
+
+  double get savingsTotal => ahorroTotal + guardaditoTotal;
+
+  double get transferNetSales =>
+      (transferSalesTotal - savingsTotal).clamp(0, transferSalesTotal);
+
+  double get cashSavingsNeeded =>
+      (savingsTotal - transferSalesTotal).clamp(0, savingsTotal);
+
+  double get cashNetSales =>
+      (cashSalesTotal - cashSavingsNeeded).clamp(0, cashSalesTotal);
+
   double get expectedCash =>
       openingAmount +
-      cashSalesTotal +
+      cashNetSales +
       manualDeposits +
       manualAdjustments -
       manualWithdrawals;
@@ -99,7 +118,8 @@ class CajaRepository {
         COALESCE(SUM(CASE WHEN cm.movement_type = 'sale' AND cm.payment_method = 'transfer' THEN cm.amount ELSE 0 END), 0) AS transfer_sales_total,
         COALESCE(SUM(CASE WHEN cm.movement_type = 'deposit' THEN cm.amount ELSE 0 END), 0) AS manual_deposits,
         COALESCE(SUM(CASE WHEN cm.movement_type = 'withdrawal' THEN cm.amount ELSE 0 END), 0) AS manual_withdrawals,
-        COALESCE(SUM(CASE WHEN cm.movement_type = 'adjustment' THEN cm.amount ELSE 0 END), 0) AS manual_adjustments
+        COALESCE(SUM(CASE WHEN cm.movement_type = 'adjustment' THEN cm.amount ELSE 0 END), 0) AS manual_adjustments,
+        COALESCE(SUM(CASE WHEN cm.movement_type = 'sale' THEN 1 ELSE 0 END), 0) AS sales_count
       FROM cash_sessions cs
       LEFT JOIN cash_movements cm ON cm.cash_session_id = cs.id
       WHERE cs.status = 'open'
@@ -133,6 +153,7 @@ class CajaRepository {
             manualDeposits: row.read<double>('manual_deposits'),
             manualWithdrawals: row.read<double>('manual_withdrawals'),
             manualAdjustments: row.read<double>('manual_adjustments'),
+            salesCount: row.read<int>('sales_count'),
           );
         });
   }
@@ -154,7 +175,8 @@ class CajaRepository {
         COALESCE(SUM(CASE WHEN cm.movement_type = 'sale' AND cm.payment_method = 'transfer' THEN cm.amount ELSE 0 END), 0) AS transfer_sales_total,
         COALESCE(SUM(CASE WHEN cm.movement_type = 'deposit' THEN cm.amount ELSE 0 END), 0) AS manual_deposits,
         COALESCE(SUM(CASE WHEN cm.movement_type = 'withdrawal' THEN cm.amount ELSE 0 END), 0) AS manual_withdrawals,
-        COALESCE(SUM(CASE WHEN cm.movement_type = 'adjustment' THEN cm.amount ELSE 0 END), 0) AS manual_adjustments
+        COALESCE(SUM(CASE WHEN cm.movement_type = 'adjustment' THEN cm.amount ELSE 0 END), 0) AS manual_adjustments,
+        COALESCE(SUM(CASE WHEN cm.movement_type = 'sale' THEN 1 ELSE 0 END), 0) AS sales_count
       FROM cash_sessions cs
       LEFT JOIN cash_movements cm ON cm.cash_session_id = cs.id
       GROUP BY cs.id
@@ -188,6 +210,7 @@ class CajaRepository {
                   manualDeposits: row.read<double>('manual_deposits'),
                   manualWithdrawals: row.read<double>('manual_withdrawals'),
                   manualAdjustments: row.read<double>('manual_adjustments'),
+                  salesCount: row.read<int>('sales_count'),
                 ),
               )
               .toList(),

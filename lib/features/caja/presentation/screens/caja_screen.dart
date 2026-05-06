@@ -194,6 +194,16 @@ class _ActiveSessionPanel extends ConsumerWidget {
                             'Efectivo en ventas: ${currency.format(session.cashSalesTotal)}',
                           ),
                         ),
+                        Chip(
+                          label: Text(
+                            'Ahorro: ${currency.format(session.ahorroTotal)}',
+                          ),
+                        ),
+                        Chip(
+                          label: Text(
+                            'Guardadito: ${currency.format(session.guardaditoTotal)}',
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -625,6 +635,26 @@ class _CloseSessionDialogState extends State<_CloseSessionDialog> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            Text(
+              'Venta total: ${NumberFormat.currency(locale: 'es_MX', symbol: r'$').format(widget.session.totalSales)}',
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Ahorro: ${NumberFormat.currency(locale: 'es_MX', symbol: r'$').format(widget.session.ahorroTotal)}',
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Guardadito: ${NumberFormat.currency(locale: 'es_MX', symbol: r'$').format(widget.session.guardaditoTotal)}',
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Transferencias netas: ${NumberFormat.currency(locale: 'es_MX', symbol: r'$').format(widget.session.transferNetSales)}',
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Efectivo neto: ${NumberFormat.currency(locale: 'es_MX', symbol: r'$').format(widget.session.cashNetSales)}',
+            ),
+            const SizedBox(height: 6),
             Text(
               'Esperado en efectivo: ${NumberFormat.currency(locale: 'es_MX', symbol: r'$').format(widget.session.expectedCash)}',
             ),
