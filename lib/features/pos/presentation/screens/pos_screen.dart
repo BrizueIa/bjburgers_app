@@ -552,6 +552,102 @@ class _CheckoutHeader extends StatelessWidget {
   }
 }
 
+enum InfoTone { primary, muted, success, error }
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    required this.tone,
+    this.trailing,
+  });
+
+  final String label;
+  final String value;
+  final InfoTone tone;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    Color? valueColor;
+    switch (tone) {
+      case InfoTone.primary:
+        valueColor = scheme.onSurface;
+        break;
+      case InfoTone.success:
+        valueColor = Colors.green;
+        break;
+      case InfoTone.error:
+        valueColor = scheme.error;
+        break;
+      case InfoTone.muted:
+        valueColor = scheme.onSurfaceVariant;
+        break;
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 80,
+            child: Text(
+              label,
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: valueColor,
+                fontWeight: tone == InfoTone.primary ? FontWeight.w600 : null,
+              ),
+            ),
+          ),
+          if (trailing != null) trailing!,
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: scheme.surfaceVariant,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 14, color: scheme.onSurfaceVariant),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: scheme.onSurfaceVariant),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SalesHistory extends ConsumerWidget {
   const _SalesHistory({required this.currency, required this.salesAsync});
 
@@ -585,37 +681,77 @@ class _SalesHistory extends ConsumerWidget {
                   .take(12)
                   .map(
                     (sale) => Card(
+                      margin: const EdgeInsets.only(bottom: 8),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       child: ExpansionTile(
-                        tilePadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 4,
+                        tilePadding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                        title: Row(
+                          children: [
+                            Expanded(
+                              child: Text(
+                                sale.saleNumber,
+                                style: Theme.of(context).textTheme.titleMedium
+                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              ),
+                            ),
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 10,
+                                vertical: 6,
+                              ),
+                              decoration: BoxDecoration(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.primaryContainer,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Text(
+                                currency.format(sale.totalAmount),
+                                style: Theme.of(context).textTheme.labelLarge
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onPrimaryContainer,
+                                    ),
+                              ),
+                            ),
+                          ],
                         ),
-                        title: Text(sale.saleNumber),
-                        subtitle: Text(
-                          '${sale.paymentMethod == 'cash' ? 'Efectivo' : 'Transferencia'} · ${dateFormat.format(sale.soldAt)}',
+                        subtitle: Padding(
+                          padding: const EdgeInsets.only(top: 6),
+                          child: Wrap(
+                            spacing: 8,
+                            runSpacing: 6,
+                            children: [
+                              _InfoChip(
+                                icon: sale.paymentMethod == 'cash'
+                                    ? Icons.payments_rounded
+                                    : Icons.account_balance_rounded,
+                                label: sale.paymentMethod == 'cash'
+                                    ? 'Efectivo'
+                                    : 'Transferencia',
+                              ),
+                              _InfoChip(
+                                icon: Icons.schedule_rounded,
+                                label: dateFormat.format(sale.soldAt),
+                              ),
+                              _InfoChip(
+                                icon: Icons.shopping_bag_rounded,
+                                label: '${sale.totalUnits} items',
+                              ),
+                            ],
+                          ),
                         ),
-                        trailing: Text(currency.format(sale.totalAmount)),
                         childrenPadding: const EdgeInsets.fromLTRB(
                           16,
                           0,
                           16,
-                          12,
+                          16,
                         ),
                         children: [
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Text(
-                                'Items: ${sale.totalUnits}',
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                              Text(
-                                currency.format(sale.totalAmount),
-                                style: Theme.of(context).textTheme.titleSmall,
-                              ),
-                            ],
-                          ),
-                          const SizedBox(height: 8),
+                          const Divider(height: 20),
                           Consumer(
                             builder: (context, ref, child) {
                               final spinAsync = ref.watch(
@@ -624,16 +760,10 @@ class _SalesHistory extends ConsumerWidget {
                               return spinAsync.when(
                                 data: (spin) {
                                   if (spin == null) {
-                                    return Text(
-                                      'Ruleta: sin codigo',
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .bodySmall
-                                          ?.copyWith(
-                                            color: Theme.of(
-                                              context,
-                                            ).colorScheme.onSurfaceVariant,
-                                          ),
+                                    return const _InfoRow(
+                                      label: 'Ruleta',
+                                      value: 'Sin codigo',
+                                      tone: InfoTone.muted,
                                     );
                                   }
                                   final status = spin.isConsumed
@@ -643,15 +773,11 @@ class _SalesHistory extends ConsumerWidget {
                                     crossAxisAlignment:
                                         CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        'Ruleta: ${spin.code}',
-                                        style: Theme.of(
-                                          context,
-                                        ).textTheme.bodySmall,
-                                      ),
-                                      Align(
-                                        alignment: Alignment.centerLeft,
-                                        child: TextButton.icon(
+                                      _InfoRow(
+                                        label: 'Ruleta',
+                                        value: spin.code,
+                                        tone: InfoTone.primary,
+                                        trailing: TextButton.icon(
                                           onPressed: () async {
                                             await Clipboard.setData(
                                               ClipboardData(text: spin.code),
@@ -671,52 +797,34 @@ class _SalesHistory extends ConsumerWidget {
                                             Icons.copy_rounded,
                                             size: 16,
                                           ),
-                                          label: const Text('Copiar codigo'),
+                                          label: const Text('Copiar'),
                                         ),
                                       ),
-                                      Text(
-                                        status,
-                                        style: Theme.of(context)
-                                            .textTheme
-                                            .bodySmall
-                                            ?.copyWith(
-                                              color: spin.isConsumed
-                                                  ? Colors.green
-                                                  : Theme.of(context)
-                                                        .colorScheme
-                                                        .onSurfaceVariant,
-                                            ),
+                                      _InfoRow(
+                                        label: 'Estado',
+                                        value: status,
+                                        tone: spin.isConsumed
+                                            ? InfoTone.success
+                                            : InfoTone.muted,
                                       ),
                                       if (spin.isConsumed)
-                                        Text(
-                                          spin.prizeLabel ?? '- ',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .bodySmall
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w600,
-                                              ),
+                                        _InfoRow(
+                                          label: 'Premio',
+                                          value: spin.prizeLabel ?? '-',
+                                          tone: InfoTone.primary,
                                         ),
                                     ],
                                   );
                                 },
-                                loading: () => Text(
-                                  'Ruleta: cargando...',
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.onSurfaceVariant,
-                                      ),
+                                loading: () => const _InfoRow(
+                                  label: 'Ruleta',
+                                  value: 'Cargando...',
+                                  tone: InfoTone.muted,
                                 ),
-                                error: (error, stackTrace) => Text(
-                                  'Ruleta: error al cargar',
-                                  style: Theme.of(context).textTheme.bodySmall
-                                      ?.copyWith(
-                                        color: Theme.of(
-                                          context,
-                                        ).colorScheme.error,
-                                      ),
+                                error: (error, stackTrace) => const _InfoRow(
+                                  label: 'Ruleta',
+                                  value: 'Error al cargar',
+                                  tone: InfoTone.error,
                                 ),
                               );
                             },
@@ -724,14 +832,10 @@ class _SalesHistory extends ConsumerWidget {
                           if (sale.itemsSummary != null &&
                               sale.itemsSummary!.isNotEmpty) ...[
                             const SizedBox(height: 8),
-                            Text(
-                              sale.itemsSummary!,
-                              style: Theme.of(context).textTheme.bodySmall
-                                  ?.copyWith(
-                                    color: Theme.of(
-                                      context,
-                                    ).colorScheme.onSurfaceVariant,
-                                  ),
+                            _InfoRow(
+                              label: 'Detalle',
+                              value: sale.itemsSummary!,
+                              tone: InfoTone.muted,
                             ),
                           ],
                         ],
