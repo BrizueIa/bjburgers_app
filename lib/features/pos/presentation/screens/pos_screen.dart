@@ -223,14 +223,17 @@ class _ReadyOrdersList extends ConsumerWidget {
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Text(
-                                  order.orderNumber,
-                                  style: Theme.of(context).textTheme.titleMedium
-                                      ?.copyWith(fontWeight: FontWeight.w600),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
                                   currency.format(order.totalEstimated),
-                                  style: Theme.of(context).textTheme.bodyMedium,
+                                  style: Theme.of(context).textTheme.titleLarge
+                                      ?.copyWith(fontWeight: FontWeight.w700),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  order.orderNumber,
+                                  style: Theme.of(context).textTheme.bodySmall
+                                      ?.copyWith(
+                                        color: scheme.onSurfaceVariant,
+                                      ),
                                 ),
                               ],
                             ),
@@ -789,32 +792,36 @@ class _SalesHistory extends ConsumerWidget {
                         title: Row(
                           children: [
                             Expanded(
-                              child: Text(
-                                sale.saleNumber,
-                                style: Theme.of(context).textTheme.titleMedium
-                                    ?.copyWith(fontWeight: FontWeight.w600),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    currency.format(sale.totalAmount),
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleLarge
+                                        ?.copyWith(fontWeight: FontWeight.w700),
+                                  ),
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    sale.saleNumber,
+                                    style: Theme.of(context).textTheme.bodySmall
+                                        ?.copyWith(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                        ),
+                                  ),
+                                ],
                               ),
                             ),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.primaryContainer,
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                              child: Text(
-                                currency.format(sale.totalAmount),
-                                style: Theme.of(context).textTheme.labelLarge
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onPrimaryContainer,
-                                    ),
-                              ),
+                            _InfoChip(
+                              icon: sale.paymentMethod == 'cash'
+                                  ? Icons.payments_rounded
+                                  : Icons.account_balance_rounded,
+                              label: sale.paymentMethod == 'cash'
+                                  ? 'Efectivo'
+                                  : 'Transferencia',
                             ),
                           ],
                         ),
@@ -824,14 +831,6 @@ class _SalesHistory extends ConsumerWidget {
                             spacing: 8,
                             runSpacing: 6,
                             children: [
-                              _InfoChip(
-                                icon: sale.paymentMethod == 'cash'
-                                    ? Icons.payments_rounded
-                                    : Icons.account_balance_rounded,
-                                label: sale.paymentMethod == 'cash'
-                                    ? 'Efectivo'
-                                    : 'Transferencia',
-                              ),
                               _InfoChip(
                                 icon: Icons.schedule_rounded,
                                 label: dateFormat.format(sale.soldAt),
