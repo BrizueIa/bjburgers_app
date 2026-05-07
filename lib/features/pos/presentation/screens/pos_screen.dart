@@ -153,7 +153,7 @@ class _PosScreenState extends ConsumerState<PosScreen>
   }
 }
 
-class _ReadyOrdersList extends StatelessWidget {
+class _ReadyOrdersList extends ConsumerWidget {
   const _ReadyOrdersList({
     required this.currency,
     required this.readyOrdersAsync,
@@ -167,7 +167,7 @@ class _ReadyOrdersList extends StatelessWidget {
   final ValueChanged<String> onSelect;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return readyOrdersAsync.when(
       data: (orders) {
         if (orders.isEmpty) {
@@ -175,6 +175,8 @@ class _ReadyOrdersList extends StatelessWidget {
             child: Text('No hay comandas listas para cobrar.'),
           );
         }
+
+        final dateFormat = DateFormat('dd/MM HH:mm');
 
         return ListView.separated(
           padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
@@ -193,45 +195,142 @@ class _ReadyOrdersList extends StatelessWidget {
                 onTap: () => onSelect(order.id),
                 child: Padding(
                   padding: const EdgeInsets.all(14),
-                  child: Row(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? scheme.onPrimaryContainer.withValues(
-                                  alpha: 0.08,
-                                )
-                              : scheme.primaryContainer,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '${order.itemCount}',
-                          style: Theme.of(context).textTheme.labelLarge,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              order.orderNumber,
-                              style: Theme.of(context).textTheme.titleMedium,
+                      Row(
+                        children: [
+                          Container(
+                            width: 38,
+                            height: 38,
+                            decoration: BoxDecoration(
+                              color: selected
+                                  ? scheme.onPrimaryContainer.withValues(
+                                      alpha: 0.08,
+                                    )
+                                  : scheme.primaryContainer,
+                              borderRadius: BorderRadius.circular(10),
                             ),
-                            const SizedBox(height: 2),
-                            Text(
-                              currency.format(order.totalEstimated),
-                              style: Theme.of(context).textTheme.bodyMedium,
+                            alignment: Alignment.center,
+                            child: Text(
+                              '${order.itemCount}',
+                              style: Theme.of(context).textTheme.labelLarge,
                             ),
-                          ],
-                        ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  order.orderNumber,
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w600),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  currency.format(order.totalEstimated),
+                                  style: Theme.of(context).textTheme.bodyMedium,
+                                ),
+                              ],
+                            ),
+                          ),
+                          Icon(
+                            Icons.chevron_right_rounded,
+                            color: scheme.onSurfaceVariant,
+                          ),
+                        ],
                       ),
-                      Icon(
-                        Icons.chevron_right_rounded,
-                        color: scheme.onSurfaceVariant,
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        children: [
+                          _InfoChip(
+                            icon: Icons.schedule_rounded,
+                            label: dateFormat.format(order.createdAt),
+                          ),
+                          _InfoChip(
+                            icon: Icons.check_circle_rounded,
+                            label: 'Lista para cobrar',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Consumer(
+                        builder: (context, ref, child) {
+                          final itemsAsync = ref.watch(
+                            posOrderItemsProvider(order.id),
+                          );
+                          return itemsAsync.when(
+                            data: (items) {
+                              if (items.isEmpty) return const SizedBox.shrink();
+                              final preview = items.take(3).toList();
+                              final remaining = items.length - preview.length;
+                              return Column(
+                                children: [
+                                  ...preview.map(
+                                    (item) => Padding(
+                                      padding: const EdgeInsets.only(bottom: 6),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: 28,
+                                            height: 28,
+                                            alignment: Alignment.center,
+                                            decoration: BoxDecoration(
+                                              color: scheme.surfaceVariant,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              '${item.quantity}',
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.labelMedium,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Expanded(
+                                            child: Text(
+                                              item.productName,
+                                              style: Theme.of(
+                                                context,
+                                              ).textTheme.bodySmall,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                  if (remaining > 0)
+                                    Align(
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(
+                                        '+$remaining producto(s) mas',
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: scheme.onSurfaceVariant,
+                                            ),
+                                      ),
+                                    ),
+                                ],
+                              );
+                            },
+                            loading: () => Text(
+                              'Cargando productos...',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: scheme.onSurfaceVariant),
+                            ),
+                            error: (error, stackTrace) => Text(
+                              'Error al cargar productos',
+                              style: Theme.of(context).textTheme.bodySmall
+                                  ?.copyWith(color: scheme.error),
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
