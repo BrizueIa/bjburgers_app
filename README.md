@@ -1,79 +1,26 @@
-# BJ Burguers App
+# B&J Burgers · Operación Android
 
-Sistema operativo para `Android`, `Linux` y `Windows` enfocado en dashboard, POS, comandas, inventario, compras, caja y reportes.
+Aplicación para recibir pedidos copiados de WhatsApp, confirmarlos, avanzar sus
+estados y emitir un código de ruleta al entregarlos.
 
-## Estado actual
+No usa Supabase, almacenamiento local de comandas ni acceso directo a PostgreSQL.
+La API B&J es la fuente de verdad.
 
-La Fase 1 ya deja listo:
+## Desarrollo
 
-- arquitectura modular por features
-- `Riverpod` y `go_router`
-- shell responsivo para movil y desktop
-- configuracion operativa local
-- `modo admin` con `PIN` global local
-- bootstrap inicial para `Supabase`
-- base para evolucionar a sync `offline-first`
-
-## Documento maestro
-
-El plan detallado vive en `docs/implementation_plan.md`.
-
-## Configuracion de Supabase
-
-La app puede arrancar sin Supabase. Como el repo es publico, no guardes la URL ni la anon key directo en codigo o en archivos versionados.
-
-1. Crea tu archivo local copiando `.env.example` a `.env`
-2. Rellena ahi tus valores reales de Supabase
-3. Ejecuta la app normalmente desde terminal o desde la extension de Flutter en VS Code
-
-Ejemplo:
-
-```bash
-cp .env.example .env
-```
-
-```bash
-flutter run
-```
-
-Para builds:
-
-```bash
-flutter build apk
-flutter build linux
-flutter build windows
-```
-
-`.env` esta ignorado por Git.
-
-La app mantiene compatibilidad con `--dart-define` como fallback, pero ahora prioriza `.env`.
-
-Para trabajar el esquema remoto con CLI:
-
-```bash
-supabase link --project-ref valahdxrscbcxuehyaxq
-supabase db push
-```
-
-Si aparece un error de `row-level security policy` al sincronizar, vuelve a correr `supabase db push` para aplicar la migracion de acceso actual.
-
-Las migraciones viven en `supabase/migrations/`.
-
-La pantalla `Settings` ya permite lanzar una sincronizacion manual real entre la app local y Supabase para:
-
-- configuracion del negocio
-- ingredientes
-- productos
-- recetas
-- compras
-
-## Comandos utiles
-
-```bash
+```powershell
 flutter pub get
+flutter run --dart-define=API_BASE_URL=https://bj-40-233-29-16.sslip.io/api/v1
+```
+
+En el primer arranque, crea un dispositivo en el panel B&J y captura su ID y
+código temporal. La credencial resultante se almacena únicamente mediante
+Android Keystore a través de `flutter_secure_storage`.
+
+## Verificación
+
+```powershell
 flutter analyze
 flutter test
+flutter build apk --debug --dart-define=API_BASE_URL=https://bj-40-233-29-16.sslip.io/api/v1
 ```
-
-`Este código no puede ser usado ni comercializado sin permiso`
-# Consulta_vic
